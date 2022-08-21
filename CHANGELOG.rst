@@ -1,6 +1,9 @@
-# Changelog
+=========
+Changelog
+=========
 
-## Version 0.1 (development)
+Version 0.1
+===========
 
 - Feature A added
 - FIX: nasty bug #1729 fixed
