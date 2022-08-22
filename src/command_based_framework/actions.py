@@ -1,6 +1,17 @@
 from abc import ABC, abstractmethod
+from enum import Enum, auto
 
 from command_based_framework.commands import Command
+
+
+class Condition(Enum):
+    """Enums representing different action conditions."""
+
+    cancel_when_activated = auto()
+    toggle_when_activated = auto()
+    when_activated = auto()
+    when_deactivated = auto()
+    when_held = auto()
 
 
 class Action(ABC):
