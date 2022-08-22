@@ -7,6 +7,6 @@
 "mypy.ini" = "Move values to setup.cfg, section [mypy]"
 
 [nitpick.files.present]
-"CHANGELOG.md" = "A project should have `CHANGELOG.md`"
-"README.md" = "A project should have `README.md`"
+"CHANGELOG.rst" = "A project should have `CHANGELOG.rst`"
+"README.rst" = "A project should have `README.rst`"
 ".gitignore" = "A project should have `.gitignore` file"
