@@ -35,15 +35,17 @@ except ImportError:
 
 output_dir = os.path.join(__location__, "api")
 module_dir = os.path.join(__location__, "../src/command_based_framework")
-try:
-    shutil.rmtree(output_dir)
-except FileNotFoundError:
-    pass
+# Overwrite docs/api by uncommenting the below
+# try:
+#     shutil.rmtree(output_dir)
+#     pass
+# except FileNotFoundError:
+#     pass
 
 try:
     import sphinx
 
-    cmd_line = f"sphinx-apidoc --implicit-namespaces -f -o {output_dir} {module_dir}"
+    cmd_line = f"sphinx-apidoc --implicit-namespaces -o {output_dir} {module_dir}"
 
     args = cmd_line.split(" ")
     if tuple(sphinx.__version__.split(".")) >= ("1", "7"):
