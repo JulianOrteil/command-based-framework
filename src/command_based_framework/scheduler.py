@@ -1,9 +1,50 @@
+import weakref
+from typing import Optional
+
 from command_based_framework.actions import Action, Condition
 from command_based_framework.commands import Command
+from command_based_framework.exceptions import SchedulerExistsError
 from command_based_framework.subsystems import Subsystem
 
 
-class Scheduler(object):
+class SchedulerMeta(type):
+    """Meta attributes for :py:class:`~command_based_framework.scheduler.Scheduler`.
+
+    All methods and attributes here exist in :py:class:`~command_based_framework.scheduler.Scheduler`.
+    """  # noqa: E501
+
+    _instance: Optional[weakref.ReferenceType["Scheduler"]]
+
+    @property
+    def instance(cls) -> Optional["Scheduler"]:
+        """The class-level instance attribute.
+
+        Ensures that no more than one scheduler instance exists else
+        undefined behavior regarding subsystems may occur.
+
+        :return: The :py:class:`~command_based_framework.scheduler.Scheduler`
+            instance if set, otherwise `None`.
+
+        :raise SchedulerExistsError:
+            An attempt was made to create multiple :py:class:`~command_based_framework.scheduler.Scheduler`
+            instances.
+        """  # noqa: E501
+        if cls._instance is None:
+            return None
+
+        return cls._instance()
+
+    @instance.setter
+    def instance(cls, instance: "Scheduler") -> None:
+        # Verify no previous instance exists
+        if Scheduler.instance:
+            raise SchedulerExistsError(
+                "a scheduler already exists, a new one cannot be created",
+            )
+        cls._instance = weakref.ref(instance)
+
+
+class Scheduler(object, metaclass=SchedulerMeta):
     """Schedules :py:class:`~command_based_framework.commands.Command` that control :py:class:`~command_based_framework.subsystems.Subsystem` when activated by :py:class:`~command_based_framework.actions.Action`.
 
     The scheduler handles events and resource management for the
@@ -54,6 +95,12 @@ class Scheduler(object):
     **8**: Upon shutdown, all current commands are interrupted and
     de-stacked. The scheduler then exits its event loop.
     """  # noqa: E501
+
+    _instance: Optional[weakref.ReferenceType["Scheduler"]] = None
+
+    def __init__(self) -> None:
+        """Creates a new :py:class:`~command_based_framework.scheduler.Scheduler` instance."""
+        Scheduler.instance = self
 
     def bind_command(
         self,
