@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional
+from typing import Mapping, Optional, Set
 
 from command_based_framework.actions import Action, Condition
 from command_based_framework.commands import Command
@@ -98,9 +98,38 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     _instance: Optional[weakref.ReferenceType["Scheduler"]] = None
 
+    # All stack has references to all commands in any stack, regardless
+    # of status
+    _all_stack: Set[Command]
+
+    # Action stack has references to the mappings between commands and
+    # actions
+    _actions_stack: Set[Mapping[Action, Mapping[Condition, Command]]]
+
+    # Incoming stack has references to all commands that were just
+    # scheduled
+    _incoming_stack: Set[Command]
+
+    # Scheduled stack has references to all commands that are normally
+    # executing
+    _scheduled_stack: Set[Command]
+
+    # Interrupted stack has references to all commands that need to be
+    # interrupted
+    _interrupted_stack: Set[Command]
+
+    # Ended stack has references to all commands that need to be ended
+    # normally
+    _ended_stack: Set[Command]
+
+    # Subsystem stack has references to all subsystems that need to
+    # have their periodic methods called
+    _subsystem_stack: Set[Subsystem]
+
     def __init__(self) -> None:
         """Creates a new :py:class:`~command_based_framework.scheduler.Scheduler` instance."""
         Scheduler.instance = self
+        self._reset_all_stacks()
 
     def bind_command(
         self,
@@ -111,10 +140,21 @@ class Scheduler(object, metaclass=SchedulerMeta):
         """Bind `command` to an `action` to be scheduled on `condition`."""
 
     def cancel(self, *commands: Command) -> None:
-        """Immediately cancel any number of commands.
+        """Immediately cancel and interrupt any number of commands.
 
-        If `commands` is not provided, cancel all scheduled commands.
+        If `commands` is not provided, interrupt all scheduled and
+        incoming commands. The `interrupt` parameter of the
+        :py:meth:`~command_based_framework.commands.Command.end` method
+        for each command will be `True`.
+
+        :param commands: Variable length of commands to cancel. If not
+            provided, interrupt all active commands.
+        :type commands: tuple
         """
+        commands = commands or self._all_stack
+        for command in commands:
+            command.end(interrupted=True)
+        self._reset_all_stacks()
 
     def execute(self) -> None:
         """Perpetually run the event loop."""
@@ -129,6 +169,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
             method should be called at all times.
         :param subsystem: :py:class:`~command_based_framework.subsystems.Subsystem`
         """  # noqa: E501
+        self._subsystem_stack.add(subsystem)
 
     def run_once(self) -> None:
         """Run one complete loop of the scheduler's event loop."""
@@ -157,6 +198,15 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     def _poll_actions(self) -> None:
         pass
+
+    def _reset_all_stacks(self) -> None:
+        self._all_stack = set()
+        self._actions_stack = set()
+        self._incoming_stack = set()
+        self._scheduled_stack = set()
+        self._interrupted_stack = set()
+        self._ended_stack = set()
+        self._subsystem_stack = set()
 
     def _update_stack(self) -> None:
         pass
