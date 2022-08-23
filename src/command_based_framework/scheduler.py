@@ -98,6 +98,9 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     _instance: Optional[weakref.ReferenceType["Scheduler"]] = None
 
+    # Clock speed is how fast the scheduler runs per second
+    _clock_speed: float
+
     # All stack has references to all commands in any stack, regardless
     # of status
     _all_stack: Set[Command]
@@ -129,7 +132,32 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def __init__(self) -> None:
         """Creates a new :py:class:`~command_based_framework.scheduler.Scheduler` instance."""
         Scheduler.instance = self
+        self.clock_speed = 1 / 60
         self._reset_all_stacks()
+
+    @property
+    def clock_speed(self) -> float:
+        """How many times the scheduler will attempt to run per second.
+
+        Because the scheduler is synchronous, long-running commands may
+        degrade the ability for the scheduler to stick to this rate.
+        This value must always remain above 0 otherwise the CPU may be
+        deadlocked.
+
+        Defaults to 60 ticks per second.
+
+        :raise ValueError: An attempt to set the clock speed at or below
+            0 was made.
+        """
+        return self._clock_speed
+
+    @clock_speed.setter
+    def clock_speed(self, clock_speed: float) -> None:
+        # Ensure the new speed is above 0
+        if clock_speed <= 0:
+            raise ValueError("clock speed must be at or above 0")
+
+        self._clock_speed = clock_speed
 
     def bind_command(
         self,
@@ -167,7 +195,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
         :param subsystem: The subsystem who's :py:meth:`~command_based_framework.subsystems.Subsystem.periodic`
             method should be called at all times.
-        :param subsystem: :py:class:`~command_based_framework.subsystems.Subsystem`
+        :type subsystem: :py:class:`~command_based_framework.subsystems.Subsystem`
         """  # noqa: E501
         self._subsystem_stack.add(subsystem)
 
