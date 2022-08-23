@@ -43,8 +43,9 @@ repos:
   hooks:
   - id: flake8
     additional_dependencies: [wemake-python-styleguide, nitpick]
+    exclude: tests/*
 
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: v0.971
   hooks:
-  -   id: mypy
+  - id: mypy
