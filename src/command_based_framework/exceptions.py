@@ -1,5 +1,5 @@
 class CommandBasedFrameworkException(Exception):
-    """Base exception for all command-based-framework exceptions."""
+    """Base exception for all framework exceptions."""
 
 
 class SchedulerExistsError(CommandBasedFrameworkException):
