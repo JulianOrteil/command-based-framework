@@ -75,7 +75,7 @@ class Command(ABC):
         :type traceback: :py:class:`Traceback`
 
         :return: `True` to indicate the error is handled. All other
-            returns to the scheduler will be interpretted as the command
+            returns to the scheduler will be interpreted as the command
             needing to be immediately interrupted.
         :rtype: bool
         """
@@ -83,7 +83,7 @@ class Command(ABC):
     def initialize(self) -> None:
         """Called each time the command in scheduled.
 
-        Any intialization or pre-execution code should go here.
+        Any initialization or pre-execution code should go here.
         """
 
     def execute(self) -> None:
