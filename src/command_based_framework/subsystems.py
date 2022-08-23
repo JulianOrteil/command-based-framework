@@ -7,8 +7,8 @@ class Subsystem(object):
     """
 
     def periodic(self) -> None:
-        """Periodically called when the subsystem is required by a scheduled :py:class:`command_based_framework.commands.Command`.
+        """Periodically called when the subsystem is required by a scheduled :py:class:`~command_based_framework.commands.Command`.
 
         Override this behavior to always execute by calling
-        :py:meth:`~command_based_framework.scheduler.register_subsystem`.
+        :py:meth:`~command_based_framework.scheduler.Scheduler.register_subsystem`.
         """  # noqa: E501
