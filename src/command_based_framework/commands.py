@@ -78,7 +78,7 @@ class Command(ABC):
             returns to the scheduler will be interpreted as the command
             needing to be immediately interrupted.
         :rtype: bool
-        """
+        """  # noqa: DAR202
 
     def initialize(self) -> None:
         """Called each time the command in scheduled.
