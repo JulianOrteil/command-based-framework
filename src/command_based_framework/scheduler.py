@@ -1,10 +1,19 @@
+import sys
 import weakref
-from typing import Mapping, Optional, Set
+from typing import Dict, List, Mapping, Optional, Set
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
 from command_based_framework.actions import Action, Condition
 from command_based_framework.commands import Command
 from command_based_framework.exceptions import SchedulerExistsError
 from command_based_framework.subsystems import Subsystem
+
+ConditionCommandType: TypeAlias = Dict[Condition, List[Command]]
+ActionStack: TypeAlias = Dict[Action, ConditionCommandType]
 
 
 class SchedulerMeta(type):
@@ -107,7 +116,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     # Action stack has references to the mappings between commands and
     # actions
-    _actions_stack: Set[Mapping[Action, Mapping[Condition, Command]]]
+    _actions_stack: ActionStack
 
     # Incoming stack has references to all commands that were just
     # scheduled
@@ -166,6 +175,15 @@ class Scheduler(object, metaclass=SchedulerMeta):
         condition: Condition,
     ) -> None:
         """Bind `command` to an `action` to be scheduled on `condition`."""
+        current_condition_stack = self._actions_stack.setdefault(action, {condition: [command]})
+        for cond, cmdlist in current_condition_stack.items():
+            for idx, cmd in enumerate(cmdlist):
+                if cmd == command:
+                    cmdlist.pop(idx)
+                    break
+            current_condition_stack[cond] = cmdlist
+        current_condition_stack.setdefault(condition, []).append(command)
+        self._actions_stack[action] = current_condition_stack
 
     def cancel(self, *commands: Command) -> None:
         """Immediately cancel and interrupt any number of commands.
@@ -179,7 +197,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
             provided, interrupt all active commands.
         :type commands: tuple
         """
-        commands = commands or self._all_stack
+        commands = commands or self._all_stack  # type: ignore
         for command in commands:
             command.end(interrupted=True)
         self._reset_all_stacks()
@@ -201,6 +219,12 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     def run_once(self) -> None:
         """Run one complete loop of the scheduler's event loop."""
+        self._poll_actions()
+        self._schedule_default_commands()
+        self._cancel_commands()
+        self._init_commands()
+        self._execute_commands()
+        self._update_stack()
 
     def shutdown(self) -> None:
         """Shut the scheduler down.
@@ -229,12 +253,15 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     def _reset_all_stacks(self) -> None:
         self._all_stack = set()
-        self._actions_stack = set()
+        self._actions_stack = {}
         self._incoming_stack = set()
         self._scheduled_stack = set()
         self._interrupted_stack = set()
         self._ended_stack = set()
         self._subsystem_stack = set()
+
+    def _schedule_default_commands(self) -> None:
+        pass
 
     def _update_stack(self) -> None:
         pass
