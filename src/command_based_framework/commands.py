@@ -38,6 +38,9 @@ class Command(ABC, ContextManagerMixin):
     long as the command is scheduled, but releases it immediately after.
     """  # noqa: E501
 
+    # The name of the command
+    _name: str
+
     def __init__(self, name: Optional[str] = None) -> None:
         """Creates a new `Command` instance.
 
@@ -46,6 +49,18 @@ class Command(ABC, ContextManagerMixin):
         :type name: str, optional
         """
         super().__init__()
+        self._name = name or self.__class__.__name__
+
+    @property
+    def name(self) -> str:
+        """The name of the command.
+
+        This is a read-only property.
+
+        If one was not provided at the creation of the command, the
+        class name is used instead.
+        """
+        return self._name
 
     def add_requirements(self, *subsystems: Subsystem) -> None:
         """Register any number of subsystems as a command requirement.
