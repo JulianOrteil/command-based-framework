@@ -16,6 +16,7 @@ repos:
   - id: requirements-txt-fixer
   - id: mixed-line-ending
     args: ['--fix=auto']
+    exclude: tests
 
 - repo: https://github.com/myint/autoflake
   rev: v1.4
@@ -26,26 +27,30 @@ repos:
       --remove-all-unused-imports,
       --remove-unused-variables,
     ]
+    exclude: tests
 
 - repo: https://github.com/pycqa/isort
   rev: 5.10.1
   hooks:
   - id: isort
+    exclude: tests
 
 - repo: https://github.com/psf/black
   rev: 22.6.0
   hooks:
   - id: black
     language_version: python3
+    exclude: tests
 
 - repo: https://github.com/PyCQA/flake8
   rev: 4.0.1
   hooks:
   - id: flake8
     additional_dependencies: [wemake-python-styleguide, nitpick]
-    exclude: tests/*
+    exclude: tests
 
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: v0.971
   hooks:
   - id: mypy
+    exclude: tests
