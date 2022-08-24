@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 
 from command_based_framework.commands import Command
+from command_based_framework.scheduler import Scheduler
 
 
 class Condition(Enum):
@@ -37,10 +38,15 @@ class Action(ABC):
         Only return `True` when all conditions are met for this action
         to activate and schedule bound commands.
         """
-        return False
+        return False  # pragma: no cover
 
     def cancel_when_activated(self, command: Command) -> None:
         """Cancel `command` when this action is activated."""
+        Scheduler.instance.bind_command(  # type: ignore
+            self,
+            command,
+            Condition.cancel_when_activated,
+        )
 
     def toggle_when_activated(self, command: Command) -> None:
         """Toggle scheduling `command` when this action is activated.
@@ -50,12 +56,32 @@ class Action(ABC):
         exits. The cycle repeats when the button is pressed for a third
         time.
         """
+        Scheduler.instance.bind_command(  # type: ignore
+            self,
+            command,
+            Condition.toggle_when_activated,
+        )
 
     def when_activated(self, command: Command) -> None:
         """Schedule `command` when this action is activated."""
-
-    def when_held(self, command: Command) -> None:
-        """Schedule `command` when this action is perpetually activated."""
+        Scheduler.instance.bind_command(  # type: ignore
+            self,
+            command,
+            Condition.when_activated,
+        )
 
     def when_deactivated(self, command: Command) -> None:
         """Schedule `command` when this action is deactivated."""
+        Scheduler.instance.bind_command(  # type: ignore
+            self,
+            command,
+            Condition.when_deactivated,
+        )
+
+    def when_held(self, command: Command) -> None:
+        """Schedule `command` when this action is perpetually activated."""
+        Scheduler.instance.bind_command(  # type: ignore
+            self,
+            command,
+            Condition.when_held,
+        )
