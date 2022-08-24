@@ -86,6 +86,7 @@ class Command(ABC):
         Any initialization or pre-execution code should go here.
         """
 
+    @abstractmethod
     def execute(self) -> None:
         """Periodically called while the command is scheduled.
 
