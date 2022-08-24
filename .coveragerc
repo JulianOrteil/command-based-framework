@@ -4,6 +4,7 @@ branch = True
 source = command_based_framework
 omit =
     */__init__.py
+    */robot.py
 
 [paths]
 source =
