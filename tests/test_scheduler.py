@@ -70,6 +70,9 @@ def test_rebinding_same_command() -> None:
         def is_finished(self) -> bool:
             return True
 
+        def execute(self) -> None:
+            return None
+
     action = MyAction()
     command = MyCommand()
     condition = Condition.when_activated
@@ -107,6 +110,9 @@ def test_binding_multiple_commands_same_action() -> None:
         def is_finished(self) -> bool:
             return True
 
+        def execute(self) -> None:
+            return None
+
     action = MyAction()
     command1 = MyCommand()
     command2 = MyCommand()
@@ -139,6 +145,9 @@ def test_rebinding_multiple_commands_same_action() -> None:
 
         def is_finished(self) -> bool:
             return True
+
+        def execute(self) -> None:
+            return None
 
     action = MyAction()
     command1 = MyCommand()
@@ -182,6 +191,9 @@ def test_binding_multiple_actions() -> None:
 
         def is_finished(self) -> bool:
             return True
+
+        def execute(self) -> None:
+            return None
 
     action1 = MyAction()
     action2 = MyAction()

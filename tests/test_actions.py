@@ -20,6 +20,9 @@ def test_bind_all_condition_types() -> None:
         def is_finished(self) -> bool:
             return True
 
+        def execute(self) -> None:
+            return None
+
     action = MyAction()
     command_cancel_when_activated = MyCommand()
     command_toggle_when_activated = MyCommand()
