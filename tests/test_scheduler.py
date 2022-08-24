@@ -1,4 +1,5 @@
 import math
+
 import pytest
 
 from command_based_framework.scheduler import Scheduler
