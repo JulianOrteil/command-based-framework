@@ -6,7 +6,7 @@ from command_based_framework._common import ContextManagerMixin
 from command_based_framework.subsystems import Subsystem
 
 
-class Command(ABC, ContextManagerMixin):
+class Command(ABC, ContextManagerMixin):  # noqa: WPS214
     """Executes a process when activated by an :py:class:`~command_based_framework.actions.Action`.
 
     Commands dictate what subsystems do at what time. They are scheduled
@@ -77,7 +77,7 @@ class Command(ABC, ContextManagerMixin):
         exc_type: Type[BaseException],
         exc: BaseException,
         traceback: TracebackType,
-    ) -> Optional[bool]:
+    ) -> bool:
         """Called when :py:meth:`~command_based_framework.commands.Command.execute` raises an error.
 
         The scheduler uses the output of this method to determine
@@ -95,7 +95,6 @@ class Command(ABC, ContextManagerMixin):
             needing to be immediately interrupted.
         :rtype: bool
         """  # noqa: DAR202
-        return super().handle_exception()  # pragma: no cover
 
     def initialize(self) -> None:
         """Called each time the command in scheduled.
