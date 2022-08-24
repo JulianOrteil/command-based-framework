@@ -174,7 +174,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         command: Command,
         condition: Condition,
     ) -> None:
-        """Bind `command` to an `action` to be scheduled on `condition`."""
+        """Bind `command` to `action` to be scheduled on `condition`."""
         current_condition_stack = self._actions_stack.setdefault(action, {condition: [command]})
         for cond, cmdlist in current_condition_stack.items():
             for idx, cmd in enumerate(cmdlist):
