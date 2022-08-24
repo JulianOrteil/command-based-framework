@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
+from command_based_framework._common import ContextManagerMixin
 from command_based_framework.commands import Command
 from command_based_framework.scheduler import Scheduler
 
@@ -15,7 +16,7 @@ class Condition(Enum):
     when_held = auto()
 
 
-class Action(ABC):
+class Action(ABC, ContextManagerMixin):
     """Schedules :py:class:`~command_based_framework.commands.Command` based on a condition being met.
 
     Actions determine when commands are scheduled/executed. To do this,

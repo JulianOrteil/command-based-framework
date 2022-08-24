@@ -2,10 +2,11 @@ from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import Optional, Type
 
+from command_based_framework._common import ContextManagerMixin
 from command_based_framework.subsystems import Subsystem
 
 
-class Command(ABC):
+class Command(ABC, ContextManagerMixin):
     """Executes a process when activated by an :py:class:`~command_based_framework.actions.Action`.
 
     Commands dictate what subsystems do at what time. They are scheduled
@@ -79,6 +80,7 @@ class Command(ABC):
             needing to be immediately interrupted.
         :rtype: bool
         """  # noqa: DAR202
+        return super().handle_exception()
 
     def initialize(self) -> None:
         """Called each time the command in scheduled.

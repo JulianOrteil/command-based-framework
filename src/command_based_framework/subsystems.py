@@ -1,4 +1,7 @@
-class Subsystem(object):
+from command_based_framework._common import ContextManagerMixin
+
+
+class Subsystem(ContextManagerMixin):
     """Breaks out complex robot components into methods and attributes.
 
     Subsystems define how something is performed; i.e. reading a sensor.
