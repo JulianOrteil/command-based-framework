@@ -207,3 +207,41 @@ def test_binding_multiple_actions() -> None:
     assert action2 in scheduler._actions_stack
     assert scheduler._actions_stack[action1] == {condition1: [command]}
     assert scheduler._actions_stack[action2] == {condition2: [command]}
+
+
+def test_command_raises_runtime_warning_in_cancel() -> None:
+    """Verify commands raise RuntimeWarnings if they fail to cancel."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyCommand(Command):
+
+        def is_finished(self) -> bool:
+            return True
+
+        def execute(self) -> None:
+            return None
+
+        def end(self, interrupted: bool) -> None:
+            raise ValueError("test error")
+
+    command = MyCommand()
+
+    # Artificially inject the command into the stack
+    scheduler._all_stack.add(command)
+
+    # Verify the command fails and raises a warning if not explicitly
+    # specified
+    with pytest.warns(RuntimeWarning):
+        scheduler.cancel()
+
+    # Re-inject the command
+    scheduler._all_stack.add(command)
+
+    # Verify the command fails and raises a warning if explicitly
+    # specified
+    with pytest.warns(RuntimeWarning):
+        scheduler.cancel(command)

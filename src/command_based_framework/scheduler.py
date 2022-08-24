@@ -1,4 +1,5 @@
 import sys
+import warnings
 import weakref
 from concurrent.futures import Future
 from contextlib import suppress
@@ -210,10 +211,33 @@ class Scheduler(object, metaclass=SchedulerMeta):
             provided, interrupt all active commands.
         :type commands: tuple
         """
-        commands = commands or self._all_stack  # type: ignore
-        for command in commands:
-            command.end(interrupted=True)
-        self._reset_all_stacks()
+        cancel_all = not commands
+        commands = set(commands) or self._all_stack  # type: ignore
+        for command in commands.copy():
+            try:
+                command.end(interrupted=True)
+            except Exception:
+                command.handle_exception(*sys.exc_info())
+                warnings.warn(
+                    (
+                        "{name} failed to interrupt, this command may have "
+                        "failed to properly quit."
+                    ).format(name=command.name),
+                    RuntimeWarning,
+                )
+
+            # Remove the command from all stacks
+            with suppress(KeyError):
+                self._all_stack.remove(command)
+            with suppress(KeyError):
+                self._incoming_stack.remove(command)
+            with suppress(KeyError):
+                self._scheduled_stack.remove(command)
+            with suppress(KeyError):
+                self._ended_stack.remove(command)
+
+        if cancel_all:
+            self._reset_all_stacks()
 
     def execute(self, fork: bool = False) -> Optional[Future]:
         """Perpetually run the event loop.
