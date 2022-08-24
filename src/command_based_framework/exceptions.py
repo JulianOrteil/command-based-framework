@@ -1,8 +1,8 @@
-class CommandBasedFrameworkException(Exception):
+class CommandBasedFrameworkError(Exception):
     """Base exception for all framework exceptions."""
 
 
-class SchedulerExistsError(CommandBasedFrameworkException):
+class SchedulerExistsError(CommandBasedFrameworkError):
     """A scheduler instance already exists.
 
     Only one scheduler may exist at any given time. More than one would
