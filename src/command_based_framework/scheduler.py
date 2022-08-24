@@ -1,23 +1,25 @@
 import sys
 import weakref
+from concurrent.futures import Future
 from contextlib import suppress
 from typing import Dict, List, Optional, Set
 
 if sys.version_info >= (3, 10):
     # WPS433: Found nested import
     # WPS440: Found block variables overlap
-    from typing import TypeAlias  # noqa: WPS433, WPS440
+    from typing import TypeAlias
 else:
     # WPS433: Found nested import
     # WPS440: Found block variables overlap
-    from typing_extensions import TypeAlias  # noqa: WPS433, WPS440
+    from typing_extensions import TypeAlias
 
 # Annotations only
 with suppress(ImportError):
     # WPS433: Found nested import
-    from command_based_framework.actions import Action, Condition  # noqa: WPS433
-    from command_based_framework.commands import Command  # noqa: WPS433
-    from command_based_framework.subsystems import Subsystem  # noqa: WPS433
+    from command_based_framework.actions import Action, Condition
+    from command_based_framework.commands import Command
+    from command_based_framework.subsystems import Subsystem
+
 from command_based_framework.exceptions import SchedulerExistsError
 
 ConditionCommandType: TypeAlias = Dict["Condition", List["Command"]]
@@ -213,8 +215,20 @@ class Scheduler(object, metaclass=SchedulerMeta):
             command.end(interrupted=True)
         self._reset_all_stacks()
 
-    def execute(self) -> None:
-        """Perpetually run the event loop."""
+    def execute(self, fork: bool = False) -> Optional[Future]:
+        """Perpetually run the event loop.
+
+        :param fork: Fork a separate thread to run the event loop in. If
+            `True`, a :py:class:`~concurrent.futures.Future` is
+            returned. If `False` and an attempt is made to shut the
+            event loop down via :py:meth:`~command_based_framework.scheduler.Scheduler.shutdown`
+            in the same thread, a deadlock will occur.
+        :type fork: bool
+
+        :return: A :py:class:`~concurrent.futures.Future` if `fork` is
+            `True`, otherwise `None`.
+        :rtype: :py:class:`~concurrent.futures.Future`, None
+        """  # noqa: DAR202
 
     def prestart_setup(self) -> None:
         """Run prestart checks and setup when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` is called."""  # noqa: E501
