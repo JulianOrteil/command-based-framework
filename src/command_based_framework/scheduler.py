@@ -1,19 +1,27 @@
 import sys
 import weakref
-from typing import Dict, List, Mapping, Optional, Set
+from contextlib import suppress
+from typing import Dict, List, Optional, Set
 
 if sys.version_info >= (3, 10):
-    from typing import TypeAlias
+    # WPS433: Found nested import
+    # WPS440: Found block variables overlap
+    from typing import TypeAlias  # noqa: WPS433, WPS440
 else:
-    from typing_extensions import TypeAlias
+    # WPS433: Found nested import
+    # WPS440: Found block variables overlap
+    from typing_extensions import TypeAlias  # noqa: WPS433, WPS440
 
-from command_based_framework.actions import Action, Condition
-from command_based_framework.commands import Command
+# Annotations only
+with suppress(ImportError):
+    # WPS433: Found nested import
+    from command_based_framework.actions import Action, Condition  # noqa: WPS433
+    from command_based_framework.commands import Command  # noqa: WPS433
+    from command_based_framework.subsystems import Subsystem  # noqa: WPS433
 from command_based_framework.exceptions import SchedulerExistsError
-from command_based_framework.subsystems import Subsystem
 
-ConditionCommandType: TypeAlias = Dict[Condition, List[Command]]
-ActionStack: TypeAlias = Dict[Action, ConditionCommandType]
+ConditionCommandType: TypeAlias = Dict["Condition", List["Command"]]
+ActionStack: TypeAlias = Dict["Action", ConditionCommandType]
 
 
 class SchedulerMeta(type):
@@ -112,7 +120,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     # All stack has references to all commands in any stack, regardless
     # of status
-    _all_stack: Set[Command]
+    _all_stack: Set["Command"]
 
     # Action stack has references to the mappings between commands and
     # actions
@@ -120,23 +128,23 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     # Incoming stack has references to all commands that were just
     # scheduled
-    _incoming_stack: Set[Command]
+    _incoming_stack: Set["Command"]
 
     # Scheduled stack has references to all commands that are normally
     # executing
-    _scheduled_stack: Set[Command]
+    _scheduled_stack: Set["Command"]
 
     # Interrupted stack has references to all commands that need to be
     # interrupted
-    _interrupted_stack: Set[Command]
+    _interrupted_stack: Set["Command"]
 
     # Ended stack has references to all commands that need to be ended
     # normally
-    _ended_stack: Set[Command]
+    _ended_stack: Set["Command"]
 
     # Subsystem stack has references to all subsystems that need to
     # have their periodic methods called
-    _subsystem_stack: Set[Subsystem]
+    _subsystem_stack: Set["Subsystem"]
 
     def __init__(self) -> None:
         """Creates a new :py:class:`~command_based_framework.scheduler.Scheduler` instance."""
@@ -170,12 +178,15 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     def bind_command(
         self,
-        action: Action,
-        command: Command,
-        condition: Condition,
+        action: "Action",
+        command: "Command",
+        condition: "Condition",
     ) -> None:
         """Bind `command` to `action` to be scheduled on `condition`."""
-        current_condition_stack = self._actions_stack.setdefault(action, {condition: [command]})
+        current_condition_stack = self._actions_stack.setdefault(
+            action,
+            {condition: [command]},
+        )
         for cond, cmdlist in current_condition_stack.items():
             for idx, cmd in enumerate(cmdlist):
                 if cmd == command:
@@ -185,7 +196,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         current_condition_stack.setdefault(condition, []).append(command)
         self._actions_stack[action] = current_condition_stack
 
-    def cancel(self, *commands: Command) -> None:
+    def cancel(self, *commands: "Command") -> None:
         """Immediately cancel and interrupt any number of commands.
 
         If `commands` is not provided, interrupt all scheduled and
@@ -208,7 +219,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def prestart_setup(self) -> None:
         """Run prestart checks and setup when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` is called."""  # noqa: E501
 
-    def register_subsystem(self, subsystem: Subsystem) -> None:
+    def register_subsystem(self, subsystem: "Subsystem") -> None:
         """Continuously call a :py:meth:`~command_based_framework.subsystems.Subsystem.periodic` method regardless if the subsystem is bound to a scheduled command.
 
         :param subsystem: The subsystem who's :py:meth:`~command_based_framework.subsystems.Subsystem.periodic`
@@ -245,7 +256,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def _init_commands(self) -> None:
         pass
 
-    def _poll_action(self, action: Action) -> None:
+    def _poll_action(self, action: "Action") -> None:
         pass
 
     def _poll_actions(self) -> None:
