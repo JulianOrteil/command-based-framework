@@ -80,7 +80,7 @@ class Command(ABC, ContextManagerMixin):
             needing to be immediately interrupted.
         :rtype: bool
         """  # noqa: DAR202
-        return super().handle_exception()
+        return super().handle_exception()  # pragma: no cover
 
     def initialize(self) -> None:
         """Called each time the command in scheduled.
