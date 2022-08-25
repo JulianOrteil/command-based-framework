@@ -6,6 +6,8 @@ from command_based_framework.subsystems import Subsystem
 
 def test_name() -> None:
     """Verify the name of subsystems are set properly."""
+    scheduler = Scheduler.instance or Scheduler()
+
     class MySubsystem(Subsystem):
         def is_finished(self) -> bool:
             return False
