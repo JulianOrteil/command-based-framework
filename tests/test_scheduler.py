@@ -209,6 +209,48 @@ def test_binding_multiple_actions() -> None:
     assert scheduler._actions_stack[action2] == {condition2: [command]}
 
 
+def test_cancel_command() -> None:
+    """Verify commands are canceled."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyAction(Action):
+
+        def poll(self) -> bool:
+            return True
+
+    class MyCommand(Command):
+
+        canceled_counter = 0
+
+        def is_finished(self) -> bool:
+            return True
+
+        def execute(self) -> None:
+            return None
+
+        def end(self, interrupted: bool) -> None:
+            self.canceled_counter += 1
+            assert interrupted
+
+    action = MyAction()
+    command = MyCommand()
+
+    # Inject the command into the scheduler's stack
+    scheduler._all_stack.add(command)
+
+    # Cancel the command
+    scheduler.cancel()
+    assert command.canceled_counter == 1
+
+    # Cancel again, but verify the command is already de-stacked
+    scheduler.cancel()
+    assert command.canceled_counter == 1
+
+
 def test_command_raises_runtime_warning_in_cancel() -> None:
     """Verify commands raise RuntimeWarnings if they fail to cancel."""
     scheduler = Scheduler.instance or Scheduler()
