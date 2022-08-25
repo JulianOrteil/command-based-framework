@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import Optional, Type
+from typing import Optional, Set, Type
 
 from command_based_framework._common import ContextManagerMixin
 from command_based_framework.subsystems import Subsystem
@@ -41,15 +41,47 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
     # The name of the command
     _name: str
 
-    def __init__(self, name: Optional[str] = None) -> None:
+    # Requirements are the subsystems required for this command to run.
+    # The scheduler uses this to ensure only one command is using a
+    # subsystem at any time
+    _requirements: Set[Subsystem]
+
+    # Indicates whether or not the command needs to be interrupted after
+    # encountering an error
+    _needs_interrupt: bool
+
+    def __init__(self, name: Optional[str] = None, *subsystems: Subsystem) -> None:
         """Creates a new `Command` instance.
 
         :param name: The name of the command. If not provided, the class
             name is used instead.
         :type name: str, optional
+        :param subsystems: Variable length of subsystems to
+            automatically require.
+        :type subsystems: tuple
         """
         super().__init__()
         self._name = name or self.__class__.__name__
+        self._requirements = set()
+        self._needs_interrupt = False
+
+        # Register each subsystem as a requirements
+        self.add_requirements(*subsystems)
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc: Optional[BaseException] = None,
+        traceback: Optional[TracebackType] = None,
+    ) -> bool:
+        """Called when the command exits a context manager."""
+        # Ignore non-errors
+        if not exc_type or not exc or not traceback:
+            return True
+
+        handled = self.handle_exception(exc_type, exc, traceback)
+        self.needs_interrupt = not handled or not isinstance(handled, bool)
+        return True
 
     @property
     def name(self) -> str:
@@ -62,6 +94,31 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         """
         return self._name
 
+    @property
+    def needs_interrupt(self) -> bool:
+        """Indicates if the command needs to be interrupted.
+
+        This property should not be set directly as it is managed by the
+        scheduler.
+
+        Every read of this property resets its state.
+        """
+        ret = self._needs_interrupt
+        self.needs_interrupt = False
+        return ret
+
+    @needs_interrupt.setter
+    def needs_interrupt(self, state: bool) -> None:
+        self._needs_interrupt = state
+
+    @property
+    def requirements(self) -> Set[Subsystem]:
+        """The subsystems this command requires to run.
+
+        This is a read-only property.
+        """
+        return self._requirements
+
     def add_requirements(self, *subsystems: Subsystem) -> None:
         """Register any number of subsystems as a command requirement.
 
@@ -71,6 +128,7 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         scheduled then it will be interrupted by the newly scheduled
         command.
         """
+        self._requirements.union(set(subsystems))
 
     def handle_exception(
         self,

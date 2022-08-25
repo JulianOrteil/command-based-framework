@@ -14,3 +14,30 @@ def test_name() -> None:
 
     assert command1.name == "MyCommand"
     assert command2.name == "HelloWorld"
+
+
+def test_needs_interrupt() -> None:
+    """Verify the needs interrupt property sets properly."""
+
+    class MyCommand(Command):
+
+        def handle_exception(self,*_) -> bool:
+            return False
+
+        def is_finished(self) -> bool:
+            return True
+
+        def execute(self) -> None:
+            raise ValueError("test error")
+
+    command = MyCommand()
+
+    # Simulate executing a command
+    with command:
+        command.execute()
+
+    # Verify the property is set
+    assert command.needs_interrupt
+
+    # Verify reading the property reset it
+    assert not command.needs_interrupt
