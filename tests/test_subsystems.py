@@ -1,6 +1,22 @@
+import pytest
+
 from command_based_framework.commands import Command
 from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
+
+def test_name() -> None:
+    """Verify the name of subsystems are set properly."""
+    class MySubsystem(Subsystem):
+        def is_finished(self) -> bool:
+            return False
+        def execute(self) -> None:
+            return None
+
+    subsystem1 = MySubsystem()
+    subsystem2 = MySubsystem(name="HelloWorld")
+
+    assert subsystem1.name == "MySubsystem"
+    assert subsystem2.name == "HelloWorld"
 
 
 def test_current_and_default_commands() -> None:
@@ -18,8 +34,9 @@ def test_current_and_default_commands() -> None:
         def periodic(self) -> None:
             return super().periodic()
 
-    command = MyCommand()
     subsystem = MySubsystem()
+    command = MyCommand(None, subsystem)
+    command_no_requirement = MyCommand()
 
     # Verify the commands are set
     subsystem.default_command = command
@@ -33,3 +50,8 @@ def test_current_and_default_commands() -> None:
     subsystem.default_command = None
     assert subsystem.default_command == None
     assert subsystem.current_command == None
+
+    # Verify the subsystem rejects default commands that don't require
+    # it
+    with pytest.raises(ValueError):
+        subsystem.default_command = command_no_requirement
