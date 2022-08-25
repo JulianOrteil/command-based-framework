@@ -1,9 +1,12 @@
 from command_based_framework.commands import Command
+from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
 
 
 def test_current_and_default_commands() -> None:
     """Verify current and default commands get set"""
+    scheduler = Scheduler.instance or Scheduler()
+
     class MyCommand(Command):
         def execute(self) -> None:
             return super().execute()

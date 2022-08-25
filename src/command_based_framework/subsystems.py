@@ -2,6 +2,7 @@ from contextlib import suppress
 from typing import Optional
 
 from command_based_framework._common import ContextManagerMixin
+from command_based_framework.scheduler import Scheduler
 
 with suppress(ImportError):
     from command_based_framework.commands import Command
@@ -23,10 +24,17 @@ class Subsystem(ContextManagerMixin):
     _default_command: Optional["Command"]
 
     def __init__(self) -> None:
-        """Creates a new `Subsystem` instance."""
+        """Creates a new `Subsystem` instance.
+
+        When created, the subsystem will automatically register itself
+        with the scheduler.
+        """
         super().__init__()
         self._current_command = None
         self._default_command = None
+
+        # Register this subsystem in the scheduler's stack
+        Scheduler.instance.register_subsystem(self)
 
     @property
     def current_command(self) -> Optional["Command"]:
