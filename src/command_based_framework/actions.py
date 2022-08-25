@@ -16,7 +16,7 @@ class Condition(Enum):
     when_held = auto()
 
 
-class Action(ABC, ContextManagerMixin):
+class Action(ABC, ContextManagerMixin):  # noqa: WPS214
     """Schedules :py:class:`~command_based_framework.commands.Command` based on a condition being met.
 
     Actions determine when commands are scheduled/executed. To do this,
@@ -31,6 +31,24 @@ class Action(ABC, ContextManagerMixin):
 
     A command can be bound to a single or multiple actions.
     """  # noqa: E501
+
+    # Flag to indicate the state of the action the last time it was
+    # checked
+    _last_state: bool
+
+    def __init__(self) -> None:
+        """Creates a new `Action` instance."""
+        super().__init__()
+        self._last_state = False
+
+    @property
+    def last_state(self) -> bool:
+        """The state of the action the last time it was checked."""
+        return self._last_state
+
+    @last_state.setter
+    def last_state(self, state: bool) -> None:
+        self._last_state = state
 
     @abstractmethod
     def poll(self) -> bool:
