@@ -128,7 +128,7 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         scheduled then it will be interrupted by the newly scheduled
         command.
         """
-        self._requirements.union(set(subsystems))
+        self._requirements.update(set(subsystems))
 
     def handle_exception(
         self,
