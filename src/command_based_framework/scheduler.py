@@ -8,22 +8,21 @@ from typing import Dict, List, Optional, Set
 if sys.version_info >= (3, 10):
     # WPS433: Found nested import
     # WPS440: Found block variables overlap
-    from typing import TypeAlias
+    from typing import TypeAlias  # pragma: no cover
 else:
     # WPS433: Found nested import
     # WPS440: Found block variables overlap
-    from typing_extensions import TypeAlias
+    from typing_extensions import TypeAlias  # pragma: no cover
 
 # Annotations only
 with suppress(ImportError):
-    # WPS433: Found nested import
-    from command_based_framework.actions import Action, Condition
-    from command_based_framework.commands import Command
-    from command_based_framework.subsystems import Subsystem
+    from command_based_framework.actions import Action, Condition  # pragma: no cover
+    from command_based_framework.commands import Command  # pragma: no cover
+    from command_based_framework.subsystems import Subsystem  # pragma: no cover
 
 from command_based_framework.exceptions import SchedulerExistsError
 
-ConditionCommandType: TypeAlias = Dict["Condition", List["Command"]]
+ConditionCommandType: TypeAlias = Dict["Condition", Set["Command"]]
 ActionStack: TypeAlias = Dict["Action", ConditionCommandType]
 
 
@@ -137,10 +136,6 @@ class Scheduler(object, metaclass=SchedulerMeta):
     # executing
     _scheduled_stack: Set["Command"]
 
-    # Interrupted stack has references to all commands that need to be
-    # interrupted
-    _interrupted_stack: Set["Command"]
-
     # Ended stack has references to all commands that need to be ended
     # normally
     _ended_stack: Set["Command"]
@@ -188,18 +183,19 @@ class Scheduler(object, metaclass=SchedulerMeta):
         """Bind `command` to `action` to be scheduled on `condition`."""
         current_condition_stack = self._actions_stack.setdefault(
             action,
-            {condition: [command]},
+            {condition: {command}},
         )
         for cond, cmdlist in current_condition_stack.items():
-            for idx, cmd in enumerate(cmdlist):
+            for cmd in cmdlist.copy():
                 if cmd == command:
-                    cmdlist.pop(idx)
+                    cmdlist.remove(cmd)
                     break
             current_condition_stack[cond] = cmdlist
-        current_condition_stack.setdefault(condition, []).append(command)
+        current_condition_stack.setdefault(condition, set()).add(command)
         self._actions_stack[action] = current_condition_stack
+        self._all_stack.add(command)
 
-    def cancel(self, *commands: "Command") -> None:
+    def cancel(self, *commands: "Command") -> None:  # noqa: WPS213
         """Immediately cancel and interrupt any number of commands.
 
         If `commands` is not provided, interrupt all scheduled and
@@ -212,8 +208,8 @@ class Scheduler(object, metaclass=SchedulerMeta):
         :type commands: tuple
         """
         cancel_all = not commands
-        commands = set(commands) or self._all_stack  # type: ignore
-        for command in commands.copy():
+        all_commands = set(commands) or self._all_stack
+        for command in all_commands.copy():
             try:
                 command.end(interrupted=True)
             except Exception:
@@ -225,6 +221,13 @@ class Scheduler(object, metaclass=SchedulerMeta):
                     ).format(name=command.name),
                     RuntimeWarning,
                 )
+
+                # Reset the interrupt flag
+                command.needs_interrupt  # noqa: WPS428
+
+            # Reset all requirements' current commands to none
+            for requirement in command.requirements:
+                requirement.current_command = None
 
             # Remove the command from all stacks
             with suppress(KeyError):
@@ -258,10 +261,14 @@ class Scheduler(object, metaclass=SchedulerMeta):
         """Run prestart checks and setup when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` is called."""  # noqa: E501
 
     def register_subsystem(self, subsystem: "Subsystem") -> None:
-        """Continuously call a :py:meth:`~command_based_framework.subsystems.Subsystem.periodic` method regardless if the subsystem is bound to a scheduled command.
+        """Register a :py:class:`~command_based_framework.subsystems.Subsystem` with the scheduler.
 
-        :param subsystem: The subsystem who's :py:meth:`~command_based_framework.subsystems.Subsystem.periodic`
-            method should be called at all times.
+        This should be called automatically by the subsystem upon
+        creation, so calling this directly should not be necessary.
+        Registered subsystems allow for default commands to be scheduled
+        if the subsystem is not active in another command.
+
+        :param subsystem: The subsystem to register.
         :type subsystem: :py:class:`~command_based_framework.subsystems.Subsystem`
         """  # noqa: E501
         self._subsystem_stack.add(subsystem)
@@ -270,7 +277,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         """Run one complete loop of the scheduler's event loop."""
         self._poll_actions()
         self._schedule_default_commands()
-        self._cancel_commands()
+        self._end_commands()
         self._init_commands()
         self._execute_commands()
         self._update_stack()
@@ -282,23 +289,139 @@ class Scheduler(object, metaclass=SchedulerMeta):
         was called, calling this from the same thread will deadlock.
         """
 
-    def _cancel_commands(self) -> None:
-        pass
+    def _end_commands(self) -> None:
+        for cmd in self._ended_stack:
+            with cmd:
+                cmd.end(interrupted=False)
+            self._scheduled_stack.remove(cmd)
+
+            # Reset all requirements' current commands to none
+            for requirement in cmd.requirements:
+                requirement.current_command = None
+
+            # Reset the interrupt flag
+            cmd.needs_interrupt  # noqa: WPS428
 
     def _execute_commands(self) -> None:
-        pass
+        for command in self._scheduled_stack.copy():
+            # Check if the command is finished before executing it
+            # Safer to do this check first
+            if command.is_finished():
+                with command:
+                    command.end(interrupted=False)
+                self._scheduled_stack.remove(command)
+
+                # Reset all requirement's current commands to none
+                for requirement in command.requirements:
+                    requirement.current_command = None
+
+                # Reset the interrupt flag
+                command.needs_interrupt  # noqa: WPS428
+                self._ended_stack.add(command)
+                continue
+
+            # Execute the command
+            with command:
+                command.execute()
+
+            # Immediately interrupt the command if needed
+            if command.needs_interrupt:
+                self.cancel(command)
 
     def _execute_subsystems(self) -> None:
-        pass
+        for subsystem in self._subsystem_stack:
+            with subsystem:
+                subsystem.periodic()
 
     def _init_commands(self) -> None:
-        pass
+        for command in self._incoming_stack.copy():
+            # If the command is already scheduled, don't init
+            if command in self._scheduled_stack:
+                self._incoming_stack.remove(command)
+                continue
 
-    def _poll_action(self, action: "Action") -> None:
-        pass
+            # If the command shares requirements with other commands in
+            # the stack, don't init
+            skip = False
+            for cmd in self._incoming_stack.copy():
+                if cmd == command:
+                    continue
+
+                if cmd.requirements.intersection(command.requirements):
+                    self._incoming_stack.remove(command)
+                    skip = True
+            if skip:
+                continue
+
+            # Interrupt other commands that use this command's
+            # requirements
+            for cmd in self._scheduled_stack.copy():
+                if cmd.requirements.intersection(command.requirements):
+                    # Verify the command is not in the interrupt or
+                    # end stacks since they would have already finished
+                    # by now
+                    if cmd in self._ended_stack:
+                        continue
+
+                    # Cancel should automatically remove this cmd from
+                    # all stacks
+                    self.cancel(cmd)
+
+            # Set all requirements current command to this incoming
+            # command
+            for requirement in command.requirements:
+                requirement.current_command = command
+
+            # Initialize this command
+            with command:
+                command.initialize()
+
+            if command.needs_interrupt:
+                # Cancel should automatically remove this cmd from
+                # all stacks
+                self.cancel(command)
 
     def _poll_actions(self) -> None:
-        pass
+        # Reimport Condition again since the top-level import will have
+        # errored out and is only used for type-hints
+        from command_based_framework.actions import Condition
+
+        for action, conditions_commands in self._actions_stack.items():
+            # Get the last and current state of the action
+            # Update the last_state immediately since we are checking
+            # the current state and the state may change
+            last_state = action.last_state
+            current_state = action.poll()
+            action.last_state = current_state
+            action_state = (last_state, current_state)
+
+            # Handle each state type
+            if action_state == (False, True):
+                # When activated
+                commands = conditions_commands.setdefault(Condition.when_activated, set())
+                self._incoming_stack.update(commands)
+
+                # Toggle when activated
+                commands = conditions_commands.setdefault(Condition.toggle_when_activated, set())
+                for command in commands:
+                    if command in self._scheduled_stack:
+                        self._ended_stack.add(command)
+                    else:
+                        self._incoming_stack.add(command)
+            elif action_state == (True, True):
+                # When held
+                commands = conditions_commands.setdefault(Condition.when_held, set())
+                self._incoming_stack.update(commands)
+            elif action_state == (True, False):
+                # When deactivated
+                commands = conditions_commands.setdefault(Condition.when_deactivated, set())
+                self._incoming_stack.update(commands)
+
+                # When held
+                # Need to be able to deactivate when held, which occurs
+                # at the same time as when deactivated
+                commands = conditions_commands.setdefault(Condition.when_held, set())
+                self._ended_stack.update(commands)
 
     def _reset_all_stacks(self) -> None:
         self._all_stack = set()
@@ -309,8 +432,24 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._ended_stack = set()
         self._subsystem_stack = set()
 
-    def _schedule_default_commands(self) -> None:
-        pass
+    def _schedule_default_commands(self) -> None:  # noqa: WPS231
+        for subsystem in self._subsystem_stack:
+            if subsystem.default_command and not subsystem.current_command:
+                for command in self._incoming_stack.union(self._scheduled_stack):
+                    if subsystem in command.requirements:
+                        # WPS220: too deeply nested
+                        break  # noqa: WPS220
+                else:
+                    self._incoming_stack.add(subsystem.default_command)
 
     def _update_stack(self) -> None:
-        pass
+        # Remove interrupted and ended commands
+        self._scheduled_stack.difference_update(self._ended_stack)
+
+        # Move incoming commands to scheduled stack
+        self._scheduled_stack.update(self._incoming_stack)
+        self._all_stack.update(self._scheduled_stack)
+
+        # Reset incoming, ended, and interrupted stacks
+        self._incoming_stack.clear()
+        self._ended_stack.clear()
