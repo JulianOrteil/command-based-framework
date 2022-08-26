@@ -36,8 +36,8 @@ def test_bind_all_condition_types() -> None:
     action.when_deactivated(command_when_deactivated)
     action.when_held(command_when_held)
 
-    assert scheduler._actions_stack[action][Condition.cancel_when_activated] == [command_cancel_when_activated]
-    assert scheduler._actions_stack[action][Condition.toggle_when_activated] == [command_toggle_when_activated]
-    assert scheduler._actions_stack[action][Condition.when_activated] == [command_when_activated]
-    assert scheduler._actions_stack[action][Condition.when_deactivated] == [command_when_deactivated]
-    assert scheduler._actions_stack[action][Condition.when_held] == [command_when_held]
+    assert scheduler._actions_stack[action][Condition.cancel_when_activated] == {command_cancel_when_activated}
+    assert scheduler._actions_stack[action][Condition.toggle_when_activated] == {command_toggle_when_activated}
+    assert scheduler._actions_stack[action][Condition.when_activated] == {command_when_activated}
+    assert scheduler._actions_stack[action][Condition.when_deactivated] == {command_when_deactivated}
+    assert scheduler._actions_stack[action][Condition.when_held] == {command_when_held}
