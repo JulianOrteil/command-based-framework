@@ -127,8 +127,7 @@ jobs:
           echo ::set-output name=mode::none
           if [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo ::set-output name=mode::release
-          fi
-          if [[ $VERSION =~ ^((?!\+|\-).)*$ ]]; then
+          elif [[ $VERSION =~ ^((?!\+|\-).)*$ ]]; then
             echo ::set-output name=mode::develop
           fi
         id: check_tag
