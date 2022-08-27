@@ -138,7 +138,7 @@ jobs:
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
       - name: Publish Release Package
-        if: ${{ steps.extract_branch.outputs.branch }} == "main" && ${{ steps.check_tag.outputs.mode == "release" }}
+        if: ${{ steps.extract_branch.outputs.branch }} == "main" && ${{ steps.check_tag.outputs.mode }} == "release"
         env:
           # To set PYPI_TOKEN as a secret using GitHub UI
           # - https://pypi.org/help/#apitoken
@@ -148,7 +148,7 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: pipx run tox -e publish -- --repository pypi
       - name: Publish Develop Package
-        if: ${{ steps.extract_branch.outputs.branch }} == "main" && ${{ steps.check_tag.outputs.mode == "develop" }}
+        if: ${{ steps.extract_branch.outputs.branch }} == "main" && ${{ steps.check_tag.outputs.mode }} == "develop"
         env:
           # To set TESTPYPI_TOKEN as a secret using GitHub UI
           # - https://pypi.org/help/#apitoken
