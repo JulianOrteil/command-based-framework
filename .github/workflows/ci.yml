@@ -66,19 +66,23 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2.1.1
+        with:
+          miniconda-version: "latest"
+          python-version: ${{ matrix.python }}
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
       - name: Update tox test environments
         shell: python
         run: |
-          with open("tox.ini", "r") as fp:
-            data = fp.readlines()
-
-          data[6] = "envlist = default"
-
-          with open("tox.ini", "w") as fp:
-            fp.writelines(data)
+          import subprocess; import json; import os
+          major, minor, impl = json.loads(subprocess.check_output(["python", "-c", "import json; import sys; import platform; print(json.dumps([sys.version_info[0], sys.version_info[1], platform.python_implementation()]));"], universal_newlines=True))
+          with open(os.environ['GITHUB_ENV'], 'a') as file_handler:
+                file_handler.write('TOXENV=' + ("py" if impl == "CPython" else "pypy") + ("{}{}".format(major, minor) if impl == "CPython" else "3") + "\n")
       - name: Run tests
         run: |
           pipx run tox \
