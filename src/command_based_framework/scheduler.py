@@ -3,7 +3,7 @@ import warnings
 import weakref
 from concurrent.futures import Future
 from contextlib import suppress
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 
 if sys.version_info >= (3, 10):
     # WPS433: Found nested import
@@ -333,7 +333,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
             with subsystem:
                 subsystem.periodic()
 
-    def _init_commands(self) -> None:
+    def _init_commands(self) -> None:  # noqa: C901, WPS231
         for command in self._incoming_stack.copy():
             # If the command is already scheduled, don't init
             if command in self._scheduled_stack:
@@ -381,10 +381,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 # all stacks
                 self.cancel(command)
 
-    def _poll_actions(self) -> None:
+    def _poll_actions(self) -> None:  # noqa: C901, WPS210, WPS231
         # Reimport Condition again since the top-level import will have
         # errored out and is only used for type-hints
-        from command_based_framework.actions import Condition
+        from command_based_framework.actions import Condition  # noqa: WPS442
 
         for action, conditions_commands in self._actions_stack.items():
             # Get the last and current state of the action
@@ -398,11 +398,17 @@ class Scheduler(object, metaclass=SchedulerMeta):
             # Handle each state type
             if action_state == (False, True):
                 # When activated
-                commands = conditions_commands.setdefault(Condition.when_activated, set())
+                commands = conditions_commands.setdefault(
+                    Condition.when_activated,
+                    set(),
+                )
                 self._incoming_stack.update(commands)
 
                 # Toggle when activated
-                commands = conditions_commands.setdefault(Condition.toggle_when_activated, set())
+                commands = conditions_commands.setdefault(
+                    Condition.toggle_when_activated,
+                    set(),
+                )
                 for command in commands:
                     if command in self._scheduled_stack:
                         self._ended_stack.add(command)
@@ -414,7 +420,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 self._incoming_stack.update(commands)
             elif action_state == (True, False):
                 # When deactivated
-                commands = conditions_commands.setdefault(Condition.when_deactivated, set())
+                commands = conditions_commands.setdefault(
+                    Condition.when_deactivated,
+                    set(),
+                )
                 self._incoming_stack.update(commands)
 
                 # When held
@@ -428,7 +437,6 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._actions_stack = {}
         self._incoming_stack = set()
         self._scheduled_stack = set()
-        self._interrupted_stack = set()
         self._ended_stack = set()
         self._subsystem_stack = set()
 
@@ -437,8 +445,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
             if subsystem.default_command and not subsystem.current_command:
                 for command in self._incoming_stack.union(self._scheduled_stack):
                     if subsystem in command.requirements:
-                        # WPS220: too deeply nested
-                        break  # noqa: WPS220
+                        break
                 else:
                     self._incoming_stack.add(subsystem.default_command)
 
