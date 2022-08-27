@@ -63,9 +63,12 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: conda-incubator/setup-miniconda@v2
         with:
+          miniconda-version: latest
           python-version: ${{ matrix.python }}
+          channels: conda-forge
+          activate-environment: command-based-framework
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}
