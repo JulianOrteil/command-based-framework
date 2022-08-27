@@ -40,7 +40,7 @@ jobs:
       - name: Build package distribution files
         run: |
           pipx run tox -e clean,build
-          echo ${{ github.event.ref }}
+          echo $(echo $GITHUB_REF | cut -d / -f 3)
       - name: Record the path of wheel distribution
         id: wheel-distribution
         run: echo "::set-output name=path::$(ls dist/*.whl)"
