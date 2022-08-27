@@ -132,7 +132,6 @@ jobs:
           if [[ ${{ github.event_name == 'release' && github.event.action == 'created' }} ]]; then
             echo ::set-output name=mode::release
           fi
-          echo ${{ steps.extract_branch.outputs.branch }}
         id: check_tag
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
