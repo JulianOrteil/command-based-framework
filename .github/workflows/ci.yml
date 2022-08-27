@@ -86,9 +86,9 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as file_handler:
                 file_handler.write('TOXENV=' + ("py" if impl == "CPython" else "pypy") + ("{}{}".format(major, minor) if impl == "CPython" else "3") + "\n")
       - name: Run tests
-        run: |
-          pipx run tox \
-          --installpkg '${{ needs.prepare.outputs.wheel-distribution }}' \
+        run: >-
+          pipx run tox
+          --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
           -- -rFEx --durations 10 --color yes
       - name: Generate coverage report
         run: pipx run coverage lcov -o coverage.lcov
