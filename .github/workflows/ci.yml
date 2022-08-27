@@ -30,7 +30,7 @@ jobs:
       wheel-distribution: ${{ steps.wheel-distribution.outputs.path }}
     steps:
       - uses: actions/checkout@v3
-        with: {fetch-depth: 0}  # deep clone for setuptools-scm
+        with: {fetch-depth: 2}  # deep clone for setuptools-scm
       - uses: actions/setup-python@v4
         with: {python-version: "3.10"}
       - name: Run static analysis and format checkers
@@ -63,6 +63,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v3
+        with: {fetch-depth: 2}  # deep clone for setuptools-scm
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
@@ -113,6 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with: {fetch-depth: 2}  # deep clone for setuptools-scm
       - uses: actions/setup-python@v4
         with: {python-version: "3.10"}
       - name: Extract branch name
