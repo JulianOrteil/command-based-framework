@@ -16,6 +16,8 @@ on:
     # Run roughly every 15 days at 00:00 UTC
     # (useful to check if updates on dependencies break the package)
     - cron: '0 0 1,16 * *'
+  release:
+    types: [created]
 
 concurrency:
   group: >-
@@ -107,3 +109,51 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           parallel-finished: true
+
+  publish:
+    needs: finalize
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with: {python-version: "3.10"}
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+      - name: Check tag
+        run: |
+          if [[ ${{ github.event.ref }} =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo ::set-output name=mode::release
+          fi
+          if [[ ${{ github.event.ref }} =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+.+$ ]]; then
+            echo ::set-output name=mode::develop
+          fi
+          if [[ ${{ github.event_name == 'release' && github.event.action == 'created' }} ]]; then
+            echo ::set-output name=mode::release
+          fi
+          echo ${{ steps.extract_branch.outputs.branch }}
+        id: check_tag
+      - name: Retrieve pre-built distribution files
+        uses: actions/download-artifact@v3
+        with: {name: python-distribution-files, path: dist/}
+      - name: Publish Release Package
+        if: ${{ steps.extract_branch.outputs.branch }} == "main" && ${{ steps.check_tag.outputs.mode == "release" }}
+        env:
+          # To set PYPI_TOKEN as a secret using GitHub UI
+          # - https://pypi.org/help/#apitoken
+          # - https://docs.github.com/en/actions/security-guides/encrypted-secrets
+          TWINE_REPOSITORY: pypi
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: pipx run tox -e publish -- --repository pypi
+      - name: Publish Develop Package
+        if: ${{ steps.extract_branch.outputs.branch }} == "main" && ${{ steps.check_tag.outputs.mode == "develop" }}
+        env:
+          # To set TESTPYPI_TOKEN as a secret using GitHub UI
+          # - https://pypi.org/help/#apitoken
+          # - https://docs.github.com/en/actions/security-guides/encrypted-secrets
+          TWINE_REPOSITORY: testpypi
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TESTPYPI_TOKEN }}
+        run: pipx run tox -e publish
