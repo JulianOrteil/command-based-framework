@@ -280,6 +280,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._end_commands()
         self._init_commands()
         self._execute_commands()
+        self._execute_subsystems()
         self._update_stack()
 
     def shutdown(self) -> None:
@@ -357,12 +358,6 @@ class Scheduler(object, metaclass=SchedulerMeta):
             # requirements
             for cmd in self._scheduled_stack.copy():
                 if cmd.requirements.intersection(command.requirements):
-                    # Verify the command is not in the interrupt or
-                    # end stacks since they would have already finished
-                    # by now
-                    if cmd in self._ended_stack:
-                        continue
-
                     # Cancel should automatically remove this cmd from
                     # all stacks
                     self.cancel(cmd)
