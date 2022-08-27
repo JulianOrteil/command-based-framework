@@ -852,4 +852,3 @@ def test_subsystems_dont_default_incoming_commands() -> None:
     scheduler.cancel(command2)
 
     assert subsystem.current_command == None
-
