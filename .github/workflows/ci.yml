@@ -121,9 +121,9 @@ jobs:
         id: extract_branch
       - name: Check tag
         run: |
+          git checkout main
           git pull --tags
           export VERSION=$(git describe --always)
-          echo $VERSION
           echo ::set-output name=mode::none
           if [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo ::set-output name=mode::release
