@@ -2,9 +2,14 @@
 Changelog
 =========
 
-Version 0.1
-===========
+Development version
+===================
 
-- Feature A added
-- FIX: nasty bug #1729 fixed
-- add your changes here!
+
+Current versions
+================
+
+Version 1.0.0, 2022-08-29
+-------------------------
+
+- Initial release
