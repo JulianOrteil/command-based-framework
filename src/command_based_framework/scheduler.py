@@ -280,6 +280,9 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def prestart_setup(self) -> None:
         """Run prestart checks and setup when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` is called."""  # noqa: E501
 
+    def postend_teardown(self) -> None:
+        """Run post-end code and teardown when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` exits."""  # noqa: E501
+
     def register_subsystem(self, subsystem: "Subsystem") -> None:
         """Register a :py:class:`~command_based_framework.subsystems.Subsystem` with the scheduler.
 
@@ -317,29 +320,34 @@ class Scheduler(object, metaclass=SchedulerMeta):
             if self._exec_thread.is_alive():
                 self._exec_thread.join()
 
-    def _execute(self, fut: Optional[Future] = None) -> None:  # noqa: C901
+    def _execute(self, fut: Optional[Future] = None) -> None:  # noqa: C901, WPS231
         # Indicate the thread is running
         if fut:
             fut.set_running_or_notify_cancel()
-        while not self._exec_sentinel.is_set():
-            try:
+
+        try:  # noqa: WPS229
+            # Run user-defined code before this function starts
+            self.prestart_setup()
+
+            # Main loop
+            while not self._exec_sentinel.is_set():
                 self.run_once()
-            except Exception as exc:
-                self.cancel()
+                time.sleep(self.clock_speed)
+        except Exception as exc:
+            # Ensure the parent thread receives the exception
+            if fut:
+                fut.set_exception(exc)
+            raise
+        finally:
+            # Cancel all commands
+            self.cancel()
 
-                # Ensure the parent thread receives the exception
-                if fut:
-                    fut.set_exception(exc)
-                raise
+            # Run postend user-defined code
+            self.postend_teardown()
 
-            time.sleep(self.clock_speed)
-
-        # Cancel all commands
-        self.cancel()
-
-        # Set the future as finished
-        if fut:
-            fut.set_result(None)
+            # Set the future as finished
+            if fut:
+                fut.set_result(None)
 
     def _end_commands(self) -> None:
         for cmd in self._ended_stack:
