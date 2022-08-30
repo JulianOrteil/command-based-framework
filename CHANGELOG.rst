@@ -5,15 +5,15 @@ Changelog
 Development version
 ===================
 
+
+Current versions
+================
+
 Version 1.1.1, 2022-08-30
 -------------------------
 
 - Add prestart and postend execution
 - Turn `CommandBasedRobot` into a proper template
-
-
-Current versions
-================
 
 Version 1.1.0, 2022-08-30
 -------------------------
