@@ -1,8 +1,10 @@
 import sys
+import time
 import warnings
 import weakref
 from concurrent.futures import Future
 from contextlib import suppress
+from threading import Event, Thread
 from typing import Dict, Optional, Set
 
 if sys.version_info >= (3, 10):
@@ -144,11 +146,18 @@ class Scheduler(object, metaclass=SchedulerMeta):
     # have their periodic methods called
     _subsystem_stack: Set["Subsystem"]
 
+    # The thread managing the execution of the event loop
+    _exec_thread: Thread
+
+    # Responsible for killing the event loop if it is forked
+    _exec_sentinel: Event
+
     def __init__(self) -> None:
         """Creates a new :py:class:`~command_based_framework.scheduler.Scheduler` instance."""
         Scheduler.instance = self
         self.clock_speed = 1 / 60
         self._reset_all_stacks()
+        self._exec_sentinel = Event()
 
     @property
     def clock_speed(self) -> float:
@@ -256,6 +265,17 @@ class Scheduler(object, metaclass=SchedulerMeta):
             `True`, otherwise `None`.
         :rtype: :py:class:`~concurrent.futures.Future`, None
         """  # noqa: DAR202
+        # Reset the sentinel
+        self._exec_sentinel.clear()
+
+        # Create a fork if necessary
+        if fork:
+            future: Future = Future()
+            self._exec_thread = Thread(target=self._execute, args=(future,))
+            self._exec_thread.start()
+            return future
+
+        return self._execute()  # type: ignore
 
     def prestart_setup(self) -> None:
         """Run prestart checks and setup when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` is called."""  # noqa: E501
@@ -286,9 +306,40 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def shutdown(self) -> None:
         """Shut the scheduler down.
 
-        If :py:meth:`~command_based_framework.scheduler.Scheduler.execute`
-        was called, calling this from the same thread will deadlock.
+        Any active commands will be interrupted when this method is
+        called.
         """
+        # Signal the event loop to quit
+        self._exec_sentinel.set()
+
+        # AttributeError will be raised if exec has not been forked
+        with suppress(AttributeError):
+            if self._exec_thread.is_alive():
+                self._exec_thread.join()
+
+    def _execute(self, fut: Optional[Future] = None) -> None:  # noqa: C901
+        # Indicate the thread is running
+        if fut:
+            fut.set_running_or_notify_cancel()
+        while not self._exec_sentinel.is_set():
+            try:
+                self.run_once()
+            except Exception as exc:
+                self.cancel()
+
+                # Ensure the parent thread receives the exception
+                if fut:
+                    fut.set_exception(exc)
+                raise
+
+            time.sleep(self.clock_speed)
+
+        # Cancel all commands
+        self.cancel()
+
+        # Set the future as finished
+        if fut:
+            fut.set_result(None)
 
     def _end_commands(self) -> None:
         for cmd in self._ended_stack:

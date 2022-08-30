@@ -1,4 +1,6 @@
 import math
+from threading import Thread
+import time
 
 import pytest
 
@@ -852,3 +854,204 @@ def test_subsystems_dont_default_incoming_commands() -> None:
     scheduler.cancel(command2)
 
     assert subsystem.current_command == None
+
+
+def test_forked_exec() -> None:
+    """Verify execute runs normally when forked."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyAction(Action):
+
+        state = False
+
+        def poll(self) -> bool:
+            return self.state
+
+    class MyCommand(Command):
+
+        did_exec = False
+
+        def is_finished(self) -> bool:
+            return False
+
+        def execute(self) -> None:
+            self.did_exec = True
+            return None
+
+    class MySubsystem(Subsystem):
+
+        periodic_counter = 0
+
+        def periodic(self) -> None:
+            self.periodic_counter += 1
+
+        def reset(self) -> None:
+            self.periodic_counter = 0
+
+    action = MyAction()
+    subsystem = MySubsystem()
+    command1 = MyCommand("Command1", subsystem)
+
+    action.when_activated(command1)
+
+    fut = scheduler.execute(fork=True)
+
+    # Activate the action
+    action.state = True
+
+    # Wait 1 second
+    time.sleep(1)
+
+    scheduler.shutdown()
+    while not fut.done():
+        time.sleep(0.1)
+
+    assert command1.did_exec
+
+
+def test_exec() -> None:
+    """Verify execute runs when executed in the main thread."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyAction(Action):
+
+        state = False
+
+        def poll(self) -> bool:
+            return self.state
+
+    class MyCommand(Command):
+
+        did_exec = False
+
+        def is_finished(self) -> bool:
+            return False
+
+        def execute(self) -> None:
+            self.did_exec = True
+            return None
+
+    class MySubsystem(Subsystem):
+
+        periodic_counter = 0
+
+        def periodic(self) -> None:
+            self.periodic_counter += 1
+
+        def reset(self) -> None:
+            self.periodic_counter = 0
+
+    action = MyAction()
+    subsystem = MySubsystem()
+    command1 = MyCommand("Command1", subsystem)
+
+    action.when_activated(command1)
+
+    def quit_after_one_second(sched: Scheduler) -> None:
+        time.sleep(1)
+        sched.shutdown()
+
+    thread = Thread(target=quit_after_one_second, args=(scheduler,))
+    thread.start()
+
+    # Activate the action
+    action.state = True
+
+    # Run the scheduler
+    scheduler.execute()
+
+    assert command1.did_exec
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_exec_cancels_on_error() -> None:
+    """Verify the event loop cancels all commands when errors occur."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyAction(Action):
+
+        state = False
+
+        def poll(self) -> bool:
+            return self.state
+
+    class MyCommand(Command):
+
+        did_exec = False
+        did_cancel = False
+
+        def is_finished(self) -> bool:
+            # Force an error condition
+            raise ValueError("test error")
+
+        def execute(self) -> None:
+            self.did_exec = True
+            return None
+
+        def end(self, interrupted: bool) -> None:
+            self.did_cancel = interrupted
+
+    class MySubsystem(Subsystem):
+
+        periodic_counter = 0
+
+        def periodic(self) -> None:
+            self.periodic_counter += 1
+
+        def reset(self) -> None:
+            self.periodic_counter = 0
+
+    action = MyAction()
+    subsystem = MySubsystem()
+    command1 = MyCommand("Command1", subsystem)
+    command2 = MyCommand("Command2", subsystem)
+
+    action.when_activated(command1)
+
+    fut = scheduler.execute(fork=True)
+
+    # Activate the action
+    action.state = True
+
+    # Wait 1 second
+    time.sleep(1)
+
+    scheduler.shutdown()
+    while not fut.done():
+        time.sleep(0.1)
+
+    # command.is_finished is called before command.execute
+    assert not command1.did_exec
+    assert command1.did_cancel
+    assert fut.exception() is not None
+
+    action.when_held(command2)
+
+    def quit_after_one_second(sched: Scheduler) -> None:
+        time.sleep(1)
+        sched.shutdown()
+
+    thread = Thread(target=quit_after_one_second, args=(scheduler,))
+    thread.start()
+
+    # Activate the action
+    action.state = True
+
+    # Run the scheduler
+    with pytest.raises(ValueError):
+        scheduler.execute()
+
+    assert not command2.did_exec
+    assert command2.did_cancel
