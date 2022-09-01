@@ -2,6 +2,7 @@ import sys
 import time
 import warnings
 import weakref
+from abc import ABCMeta
 from concurrent.futures import Future
 from contextlib import suppress
 from threading import Event, Thread
@@ -28,7 +29,7 @@ ConditionCommandType: TypeAlias = Dict["Condition", Set["Command"]]
 ActionStack: TypeAlias = Dict["Action", ConditionCommandType]
 
 
-class SchedulerMeta(type):
+class SchedulerMeta(ABCMeta, type):
     """Meta attributes for :py:class:`~command_based_framework.scheduler.Scheduler`.
 
     All methods and attributes here exist in :py:class:`~command_based_framework.scheduler.Scheduler`.
@@ -297,7 +298,11 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._subsystem_stack.add(subsystem)
 
     def run_once(self) -> None:
-        """Run one complete loop of the scheduler's event loop."""
+        """Run one complete loop of the scheduler's event loop.
+
+        Note this does not call :py:meth:`~Scheduler.prestart_setup` or
+        :py:meth:`~Scheduler.postend_teardown`.
+        """
         self._poll_actions()
         self._schedule_default_commands()
         self._end_commands()

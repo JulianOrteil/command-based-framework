@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 from command_based_framework.scheduler import Scheduler
 
 
@@ -57,4 +58,3 @@ class CommandBasedRobot(ABC, Scheduler):
 
         Any post-execution code should go here.
         """
-        return super().postend_teardown()
