@@ -5,6 +5,10 @@ Changelog
 Development version
 ===================
 
+Version 1.1.2, 2022-09-01
+-------------------------
+
+- Fix metaclass conflict in `CommandBasedRobot`
 
 Current versions
 ================
