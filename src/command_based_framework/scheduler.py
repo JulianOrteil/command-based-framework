@@ -29,7 +29,7 @@ ConditionCommandType: TypeAlias = Dict["Condition", Set["Command"]]
 ActionStack: TypeAlias = Dict["Action", ConditionCommandType]
 
 
-class SchedulerMeta(ABCMeta, type):
+class SchedulerMeta(ABCMeta, type):  # noqa: B024
     """Meta attributes for :py:class:`~command_based_framework.scheduler.Scheduler`.
 
     All methods and attributes here exist in :py:class:`~command_based_framework.scheduler.Scheduler`.
