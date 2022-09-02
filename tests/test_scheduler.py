@@ -355,18 +355,20 @@ def test_scheduler_event_loop() -> None:
 
     action = MyAction()
     subsystem = MySubsystem()
+    subsystem2 = MySubsystem()
     command1 = MyCommand("Command1", subsystem)
     command2 = MyCommand("Command2", subsystem)
     command3 = MyCommand("Command3", subsystem)
     command4 = MyCommand("Command4", subsystem)
     command5 = MyCommand("Command5", subsystem)
+    command6 = MyCommand("Command6", subsystem2)
 
     # Bind each command to separate conditions
-    action.cancel_when_activated(command1)
     action.toggle_when_activated(command2)
     action.when_activated(command3)
     action.when_deactivated(command4)
     action.when_held(command5)
+    action.cancel_when_activated(command6)
 
     # Set the subsystem's default command to command1
     subsystem.default_command = command1
@@ -374,13 +376,16 @@ def test_scheduler_event_loop() -> None:
     # Verify the scheduler is tracking the commands correctly
     assert scheduler._actions_stack == {
         action: {
-            Condition.cancel_when_activated: {command1},
+            Condition.cancel_when_activated: {command6},
             Condition.toggle_when_activated: {command2},
             Condition.when_activated: {command3},
             Condition.when_deactivated: {command4},
             Condition.when_held: {command5},
         }
     }
+
+    # Inject command6 as if it was already executing
+    scheduler._scheduled_stack.add(command6)
 
     # Run one loop of the scheduler
     scheduler.run_once()
@@ -391,10 +396,11 @@ def test_scheduler_event_loop() -> None:
     assert command1.did_end == 0
     assert command1.did_interrupt == 0
     assert command1.did_finish == 0
-    assert scheduler._scheduled_stack == {command1}
+    assert scheduler._scheduled_stack == {command1, command6}
     assert not scheduler._incoming_stack
     assert subsystem.current_command == command1
     assert subsystem.periodic_counter == 1
+    assert command6.did_exec == 1
 
     # Run again to ensure command1's exec is called
     scheduler.run_once()
@@ -405,6 +411,7 @@ def test_scheduler_event_loop() -> None:
     assert command1.did_finish == 1
     assert subsystem.current_command == command1
     assert subsystem.periodic_counter == 2
+    assert command6.did_exec == 2
 
     # Now activate the action
     action.state = True
@@ -425,6 +432,9 @@ def test_scheduler_event_loop() -> None:
     assert not command2.did_interrupt and not command3.did_interrupt
     assert subsystem.current_command == (command2 if command2.did_init else command3)
     assert subsystem.periodic_counter == 3
+
+    assert command6.did_exec == 2
+    assert command6.did_interrupt == 1
 
     scheduler.run_once()  # when held
 

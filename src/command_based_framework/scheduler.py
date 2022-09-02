@@ -143,6 +143,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
     # normally
     _ended_stack: Set["Command"]
 
+    # Cancel stack has references to all commands that need to be
+    # canceled
+    _cancel_stack: Set["Command"]
+
     # Subsystem stack has references to all subsystems that need to
     # have their periodic methods called
     _subsystem_stack: Set["Subsystem"]
@@ -355,6 +359,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 fut.set_result(None)
 
     def _end_commands(self) -> None:
+        # End commands normally
         for cmd in self._ended_stack:
             with cmd:
                 cmd.end(interrupted=False)
@@ -366,6 +371,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
             # Reset the interrupt flag
             cmd.needs_interrupt  # noqa: WPS428
+
+        # Cancel commands
+        if self._cancel_stack:
+            self.cancel(*self._cancel_stack)
 
     def _execute_commands(self) -> None:
         for command in self._scheduled_stack.copy():
@@ -456,6 +465,13 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
             # Handle each state type
             if action_state == (False, True):
+                # Cancel when activated
+                commands = conditions_commands.setdefault(
+                    Condition.cancel_when_activated,
+                    set()
+                )
+                self._cancel_stack.update(commands)
+
                 # When activated
                 commands = conditions_commands.setdefault(
                     Condition.when_activated,
@@ -497,6 +513,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._incoming_stack = set()
         self._scheduled_stack = set()
         self._ended_stack = set()
+        self._cancel_stack = set()
         self._subsystem_stack = set()
 
     def _schedule_default_commands(self) -> None:  # noqa: WPS231
@@ -511,6 +528,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def _update_stack(self) -> None:
         # Remove interrupted and ended commands
         self._scheduled_stack.difference_update(self._ended_stack)
+        self._scheduled_stack.difference_update(self._cancel_stack)
 
         # Move incoming commands to scheduled stack
         self._scheduled_stack.update(self._incoming_stack)
@@ -519,3 +537,4 @@ class Scheduler(object, metaclass=SchedulerMeta):
         # Reset incoming, ended, and interrupted stacks
         self._incoming_stack.clear()
         self._ended_stack.clear()
+        self._cancel_stack.clear()
