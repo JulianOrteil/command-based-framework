@@ -83,6 +83,14 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         self.needs_interrupt = not handled or not isinstance(handled, bool)
         return True
 
+    def __repr__(self) -> str:
+        """Unicode representation of the class."""
+        return self.__str__()
+
+    def __str__(self) -> str:
+        """Unicode representation of the class."""
+        return "<{name}>".format(name=self.name)
+
     @property
     def name(self) -> str:
         """The name of the command.

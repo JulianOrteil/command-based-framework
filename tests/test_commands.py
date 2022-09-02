@@ -14,6 +14,7 @@ def test_name() -> None:
 
     assert command1.name == "MyCommand"
     assert command2.name == "HelloWorld"
+    assert str(command1) == "<MyCommand>"
 
 
 def test_needs_interrupt() -> None:
