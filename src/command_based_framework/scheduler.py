@@ -468,7 +468,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 # Cancel when activated
                 commands = conditions_commands.setdefault(
                     Condition.cancel_when_activated,
-                    set()
+                    set(),
                 )
                 self._cancel_stack.update(commands)
 
