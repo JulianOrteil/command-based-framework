@@ -245,8 +245,6 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
             # Remove the command from all stacks
             with suppress(KeyError):
-                self._all_stack.remove(command)
-            with suppress(KeyError):
                 self._incoming_stack.remove(command)
             with suppress(KeyError):
                 self._scheduled_stack.remove(command)
