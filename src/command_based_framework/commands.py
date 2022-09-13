@@ -1,9 +1,26 @@
+import itertools
+import sys
+import time
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Event
 from types import TracebackType
-from typing import Optional, Set, Type
+from typing import Iterator, Optional, Set, Tuple, Type, Union
+
+if sys.version_info >= (3, 10):
+    # WPS433: Found nested import
+    # WPS440: Found block variables overlap
+    from typing import TypeAlias  # noqa: WPS433, WPS440; pragma: no cover
+else:
+    # WPS433: Found nested import
+    # WPS440: Found block variables overlap
+    from typing_extensions import TypeAlias  # noqa: WPS433, WPS440; pragma: no cover
 
 from command_based_framework._common import ContextManagerMixin
+from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
+
+CommandType: TypeAlias = Union["Command", "CommandGroup"]
 
 
 class Command(ABC, ContextManagerMixin):  # noqa: WPS214
@@ -191,3 +208,212 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         :return: `True` if the command should end, otherwise `False`.
         :rtype: bool
         """  # noqa: E501
+
+
+class CommandGroup(Command):
+    """Group commands into a single manageable interface.
+
+    Only provides a modified command `__init__` method which accepts
+    commands instead of subsystems. Also requires all subsystems by any
+    passed commands which may share requirements. Note this behavior may
+    change on child classes of this abstract.
+
+    Any command or group can be provided to this abstract.
+    """
+
+    _commands: Tuple[CommandType, ...]
+
+    def __init__(self, name: Optional[str] = None, *commands: CommandType) -> None:
+        """Creates a new :class:`~CommandGroup` instance.
+
+        Args:
+            name: The name of the command group. If not provided, the
+                class name is used instead.
+            commands: Variable length of commands to group.
+        """  # noqa: RST203
+        super().__init__(name)
+
+        # Require all subsystems
+        for command in commands:
+            self.add_requirements(*command.requirements)
+
+        self._commands = commands
+
+
+class SequentialCommandGroup(CommandGroup):
+    """Sequentially executes commands.
+
+    The order which commands are provided to the constructor determines
+    the order the commands are executed. If any commands error or are
+    interrupted, no further commands will be executed.
+
+    Any command or group can be provided to the constructor.
+    """
+
+    _sequence: Iterator[CommandType]
+    _current_command: Optional[CommandType]
+    _end_of_sequence: bool
+
+    def __init__(self, name: Optional[str] = None, *commands: CommandType) -> None:
+        """Creates a new :class:`~SequentialCommandGroup` instance.
+
+        Args:
+            name: The name of the command group. If not provided, the
+                class name is used instead.
+            commands: Variable length of commands to group.
+        """  # noqa: RST203
+        super().__init__(name, *commands)
+        self._end_of_sequence = False
+
+    def initialize(self) -> None:
+        """Select the first command in the chain to run."""
+        self._end_of_sequence = False
+        self._sequence = iter(self._commands)
+        self._prepare_next_command()
+
+    def execute(self) -> None:
+        """Execute the currently sequenced command."""
+        # mypy fix, check if self._current_command is set
+        if not self._current_command:  # pragma: no cover
+            self._end_of_sequence = True  # pragma: no cover
+            return  # pragma: no cover
+
+        # Check if the current command has finished
+        # If so, end it and prepare the next one
+        if self._current_command.is_finished():
+            self._current_command.end(interrupted=False)
+            self._prepare_next_command()
+            return
+
+        # Execute the current command
+        self._current_command.execute()
+
+    def is_finished(self) -> bool:
+        """Check if the end of the chain has been reached."""
+        return self._end_of_sequence or not self._current_command
+
+    def end(self, interrupted: bool) -> None:
+        """End the current command."""
+        if self._current_command:
+            self._current_command.end(interrupted=interrupted)
+
+    def _prepare_next_command(self) -> None:
+        try:
+            self._current_command = next(self._sequence)
+        except StopIteration:
+            self._current_command = None
+            self._end_of_sequence = True
+            return
+
+        # Initialize the command
+        self._current_command.initialize()
+
+
+class ParallelCommandGroup(CommandGroup):
+    """Run multiple commands in parallel.
+
+    Each command will execute in its own dedicated thread. Unlike most
+    other command groups, commands submitted here cannot share
+    requirements.
+    """
+
+    _pool: ThreadPoolExecutor
+    _finished: Barrier
+    _sentinel: Event
+
+    def __init__(  # noqa: WPS231
+        self,
+        name: Optional[str] = None,
+        *commands: CommandType,
+    ) -> None:
+        """Creates a new :py:class:`~ParallelCommandGroup` instance.
+
+        Args:
+            name: The name of the command group. If not provided, the
+                class name is used instead.
+            commands: Variable length of commands to group.
+        """  # noqa: RST203
+        # Don't pass the commands to the parent class, we have to
+        # implement custom checking of them here
+        super().__init__(name)
+
+        # Check for shared requirements
+        for command in commands:
+            for cmd in commands:
+                if cmd == command:
+                    continue
+                if cmd.requirements.intersection(command.requirements):
+                    raise ValueError(
+                        "{cmd1} has shared requirements with {cmd2}".format(
+                            cmd1=command,
+                            cmd2=cmd,
+                        ),
+                    )
+            self.add_requirements(*command.requirements)
+
+        self._commands = commands
+        self._sentinel = Event()
+
+    def initialize(self) -> None:
+        """Submit all commands to the thread pool."""
+        self._sentinel.clear()
+        self._pool = ThreadPoolExecutor(len(self._commands) + 1)
+        self._finished = Barrier(len(self._commands) + 1)
+        self._pool.map(
+            self._execute,
+            self._commands,
+            itertools.repeat(self._finished),
+            itertools.repeat(self._sentinel),
+        )
+
+    def execute(self) -> None:
+        """Not implemented."""
+
+    def is_finished(self) -> bool:
+        """Check if all commands have finished."""
+        # Do not catch BrokenPipeErrors
+        # We want to ensure commands are interrupted in the event
+        # something unexpected occurs
+        return self._finished.n_waiting == len(self._commands)
+
+    def end(self, interrupted: bool) -> None:
+        """Wait for all commands to finish executing."""
+        self._sentinel.set()
+        self._finished.wait()
+        self._pool.shutdown(wait=True)
+
+    def _execute(
+        self,
+        command: CommandType,
+        finished: Barrier,
+        sentinel: Event,
+    ) -> None:
+        try:  # noqa: WPS229
+            # Initialize the command
+            command.initialize()
+
+            # Run an event loop
+            while True:
+                # Check if the current command has finished
+                if command.is_finished():
+                    command.end(interrupted=False)
+                    return
+
+                # Check if the thread pool is shutting down
+                if sentinel.is_set():
+                    command.end(interrupted=True)
+                    return
+
+                # Execute the current command
+                command.execute()
+
+                time.sleep(Scheduler.instance.clock_speed)  # type: ignore
+        except Exception:
+            # Handle errors
+            command.handle_exception(*sys.exc_info())
+            command.end(interrupted=True)
+
+            # Stop execution
+            sentinel.set()
+        finally:
+            finished.wait()

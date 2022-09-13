@@ -5,7 +5,7 @@ import time
 import pytest
 
 from command_based_framework.actions import Action, Condition
-from command_based_framework.commands import Command
+from command_based_framework.commands import Command, ParallelCommandGroup, SequentialCommandGroup
 from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
 
@@ -790,7 +790,6 @@ def test_scheduled_incoming_conflicting_commands() -> None:
             self.did_interrupt = 0
             self.do_finish = False
 
-
     class MySubsystem(Subsystem):
 
         def periodic(self) -> None:
@@ -1065,3 +1064,302 @@ def test_exec_cancels_on_error() -> None:
 
     assert not command2.did_exec
     assert command2.did_cancel
+
+
+def test_sequential_command_group() -> None:
+    """Verify sequential command group operates as expected."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyAction(Action):
+
+        state = False
+
+        def poll(self) -> bool:
+            return self.state
+
+    class MyCommand(Command):
+
+        did_init = 0
+        did_exec = 0
+        did_end = 0
+        did_interrupt = 0
+        did_finish = 0
+        do_finish = False
+
+        def initialize(self) -> None:
+            self.did_init += 1
+
+        def execute(self) -> None:
+            self.did_exec += 1
+
+        def end(self, interrupted: bool) -> None:
+            if interrupted:
+                self.did_interrupt += 1
+                return
+            self.did_end += 1
+
+        def is_finished(self) -> bool:
+            self.did_finish += 1
+            return self.do_finish
+
+        def reset(self) -> None:
+            self.did_init = 0
+            self.did_exec = 0
+            self.did_end = 0
+            self.did_interrupt = 0
+            self.do_finish = False
+
+    class MySubsystem(Subsystem):
+
+        periodic_counter = 0
+
+        def periodic(self) -> None:
+            self.periodic_counter += 1
+
+        def reset(self) -> None:
+            self.periodic_counter = 0
+
+    action = MyAction()
+    subsystem = MySubsystem()
+    command1 = MyCommand("Command1", subsystem)
+    command2 = MyCommand("Command2", subsystem)
+    command3 = MyCommand("Command1", subsystem)
+    command4 = MyCommand("Command2", subsystem)
+    seq_command = SequentialCommandGroup("MySequentialCommandGroup", command1, command2)
+    seq_command2 = SequentialCommandGroup("MySequentialCommandGroup2", command3, command4)
+
+    subsystem.default_command = seq_command2
+
+    action.when_activated(seq_command)
+    action.state = True
+
+    scheduler.run_once()
+
+    assert subsystem.current_command == seq_command
+    assert command1.did_init == 1
+    assert command2.did_init == 0
+
+    scheduler.run_once()
+
+    assert command1.did_init == 1
+    assert command1.did_finish == 1
+    assert command1.did_exec == 1
+    assert command2.did_init == 0
+
+    command1.do_finish = True
+
+    scheduler.run_once()
+
+    assert command1.did_exec == 1
+    assert command1.did_finish == 2
+    assert command1.did_end == 1
+    assert command2.did_init == 1
+
+    scheduler.run_once()
+
+    assert command2.did_init == 1
+    assert command2.did_exec == 1
+    assert command2.did_finish == 1
+
+    command2.do_finish = True
+
+    scheduler.run_once()
+    scheduler.run_once()
+
+    assert command2.did_exec == 1
+    assert command2.did_finish == 2
+    assert command2.did_end == 1
+    assert seq_command._end_of_sequence
+    assert subsystem.current_command == None
+
+    scheduler.run_once()
+
+    assert subsystem.current_command == seq_command2
+    assert command3.did_init == 1
+
+    scheduler.run_once()
+
+    assert command3.did_exec == 1
+    assert command3.did_finish == 1
+
+    # Cancel the sequential command
+    subsystem.default_command = None
+    scheduler.cancel(seq_command2)
+
+    assert subsystem.current_command == None
+    assert command3.did_interrupt == 1
+    assert command4.did_init == 0
+    assert command4.did_exec == 0
+    assert command4.did_end == 0
+    assert command4.did_finish == 0
+    assert command4.did_interrupt == 0
+
+
+def test_parallel_command_group() -> None:
+    """Verify parallel command groups execute as expected."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyAction(Action):
+
+        state = False
+
+        def poll(self) -> bool:
+            return self.state
+
+    class MyCommand(Command):
+
+        did_init = 0
+        did_exec = 0
+        did_end = 0
+        did_interrupt = 0
+        did_finish = 0
+        do_finish = False
+        raise_error = False
+
+        def handle_exception(self, *exc) -> bool:
+            print(exc)
+            return True
+
+        def initialize(self) -> None:
+            self.did_init += 1
+
+        def execute(self) -> None:
+            self.did_exec += 1
+            if self.raise_error:
+                raise ValueError("test")
+
+        def end(self, interrupted: bool) -> None:
+            if interrupted:
+                self.did_interrupt += 1
+                return
+            self.did_end += 1
+
+        def is_finished(self) -> bool:
+            self.did_finish += 1
+            return self.do_finish
+
+        def reset(self) -> None:
+            self.did_init = 0
+            self.did_exec = 0
+            self.did_end = 0
+            self.did_interrupt = 0
+            self.do_finish = False
+
+    class MySubsystem(Subsystem):
+
+        periodic_counter = 0
+
+        def periodic(self) -> None:
+            self.periodic_counter += 1
+
+        def reset(self) -> None:
+            self.periodic_counter = 0
+
+    action = MyAction()
+    action2 = MyAction()
+    subsystem = MySubsystem()
+    subsystem2 = MySubsystem()
+    command1 = MyCommand("Command1", subsystem)
+    command2 = MyCommand("Command2", subsystem2)
+    command3 = MyCommand("Command3", subsystem)
+    command4 = MyCommand("Command4", subsystem2)
+    command5 = MyCommand("Command5", subsystem)
+    command6 = MyCommand("Command6", subsystem2)
+    par_command = ParallelCommandGroup("MyParallelCommandGroup", command1, command2)
+    par_command2 = ParallelCommandGroup("MyParallelCommandGroup2", command3, command4)
+    par_command3 = ParallelCommandGroup("MyParallelCommandGroup3", command5, command6)
+
+    with pytest.raises(ValueError):
+        ParallelCommandGroup("MyParallelCommandGroup", command1, command3)
+
+    action.when_activated(par_command)
+    action.state = True
+
+    scheduler.run_once()
+
+    # Allow the threads to execute for a little bit
+    time.sleep(1)
+
+    command1.do_finish = True
+    command2.do_finish = True
+
+    # Allow parallel threads to reach their barrier
+    time.sleep(0.1)
+
+    # Finish executing the parallel command and clean it up
+    scheduler.run_once()
+
+    assert command1.did_init == 1
+    assert command1.did_exec > 0
+    assert command1.did_finish > 0
+    assert command1.did_end == 1
+
+    assert command2.did_init == 1
+    assert command2.did_exec > 0
+    assert command2.did_finish > 0
+    assert command2.did_end == 1
+
+    action.when_held(par_command2)
+
+    scheduler.run_once()
+
+    # Allow the threads to execute for a little bit
+    time.sleep(1)
+
+    action.state = False
+
+    scheduler.run_once()
+
+    # Allow parallel threads to reach their barrier
+    time.sleep(1)
+
+    # Finish executing the parallel command and clean it up
+    scheduler.run_once()
+
+    assert command3.did_init == 1
+    assert command3.did_exec > 0
+    assert command3.did_finish > 0
+    assert command3.did_end == 0
+    assert command3.did_interrupt == 1
+
+    assert command4.did_init == 1
+    assert command4.did_exec > 0
+    assert command4.did_finish > 0
+    assert command4.did_end == 0
+    assert command4.did_interrupt == 1
+
+    action2.when_activated(par_command3)
+    action2.state = True
+
+    scheduler.run_once()
+
+    # All threads to execute for a little bit
+    time.sleep(1)
+
+    # Raise an error in command 5
+    command5.raise_error = True
+
+    time.sleep(20)
+
+    # Ensure the group catches the error and handles it properly
+    scheduler.run_once()
+
+    assert command5.did_init == 1
+    assert command5.did_exec > 0
+    assert command5.did_finish > 0
+    assert command5.did_end == 0
+    assert command5.did_interrupt == 1
+
+    assert command6.did_init == 1
+    assert command6.did_exec > 0
+    assert command6.did_finish > 0
+    assert command6.did_end == 0
+    assert command6.did_interrupt == 1
