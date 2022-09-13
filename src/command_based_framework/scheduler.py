@@ -35,7 +35,7 @@ class SchedulerMeta(ABCMeta, type):  # noqa: B024
     All methods and attributes here exist in :py:class:`~command_based_framework.scheduler.Scheduler`.
     """  # noqa: E501
 
-    _instance: Optional[weakref.ReferenceType["Scheduler"]]
+    _instance: Optional["weakref.ReferenceType[Scheduler]"]
 
     @property
     def instance(cls) -> Optional["Scheduler"]:
@@ -118,7 +118,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
     de-stacked. The scheduler then exits its event loop.
     """  # noqa: E501
 
-    _instance: Optional[weakref.ReferenceType["Scheduler"]] = None
+    _instance: Optional["weakref.ReferenceType[Scheduler]"] = None
 
     # Clock speed is how fast the scheduler runs per second
     _clock_speed: float
