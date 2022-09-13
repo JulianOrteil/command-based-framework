@@ -5,6 +5,15 @@ Changelog
 Development version
 ===================
 
+Version 1.2.0, 2022-09-XX
+-------------------------
+
+- Implement missing "cancel when activated" action condition
+- Add `Command` unicode representation
+- Add `SequentialCommandGroup` and `ParallelCommandGroup`
+- Add official support for Python 3.7 and Python 3.8
+- Require coverage be 100% for tests to pass
+
 Current versions
 ================
 
