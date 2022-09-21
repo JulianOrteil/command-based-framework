@@ -253,10 +253,12 @@ class SequentialCommandGroup(CommandGroup):
         """  # noqa: RST203
         super().__init__(name, *commands)
         self._end_of_sequence = False
+        self._current_command = None
 
     def initialize(self) -> None:
         """Select the first command in the chain to run."""
         self._end_of_sequence = False
+        self._current_command = None
         self._sequence = iter(self._commands)
         self._prepare_next_command()
 
@@ -287,12 +289,15 @@ class SequentialCommandGroup(CommandGroup):
             self._current_command.end(interrupted=interrupted)
 
     def _prepare_next_command(self) -> None:
-        try:
-            self._current_command = next(self._sequence)
-        except StopIteration:
-            self._current_command = None
-            self._end_of_sequence = True
-            return
+        if self._current_command is None:
+            self._current_command = self._commands[0]
+        else:
+            try:
+                self._current_command = next(self._sequence)
+            except StopIteration:
+                self._current_command = None
+                self._end_of_sequence = True
+                return
 
         # Initialize the command
         self._current_command.initialize()

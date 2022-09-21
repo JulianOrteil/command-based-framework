@@ -1157,6 +1157,9 @@ def test_sequential_command_group() -> None:
     assert command1.did_exec == 1
     assert command1.did_finish == 2
     assert command1.did_end == 1
+
+    scheduler.run_once()
+
     assert command2.did_init == 1
 
     scheduler.run_once()
@@ -1341,13 +1344,14 @@ def test_parallel_command_group() -> None:
 
     scheduler.run_once()
 
-    # All threads to execute for a little bit
+    # Allow threads to execute for a little bit
     time.sleep(1)
 
     # Raise an error in command 5
     command5.raise_error = True
 
-    time.sleep(20)
+    # Allow threads to catch error being raised
+    time.sleep(0.1)
 
     # Ensure the group catches the error and handles it properly
     scheduler.run_once()
@@ -1363,3 +1367,97 @@ def test_parallel_command_group() -> None:
     assert command6.did_finish > 0
     assert command6.did_end == 0
     assert command6.did_interrupt == 1
+
+
+def test_callable_command_type() -> None:
+    """Verify callables that return commands are executed correctly."""
+    scheduler = Scheduler.instance or Scheduler()
+    scheduler._reset_all_stacks()
+
+    # Verify the stack is empty
+    assert not scheduler._actions_stack
+
+    class MyAction(Action):
+
+        state = False
+
+        def poll(self) -> bool:
+            return self.state
+
+    class MyCommand(Command):
+
+        did_init = 0
+        did_exec = 0
+        did_end = 0
+        did_interrupt = 0
+        did_finish = 0
+        do_finish = False
+
+        def initialize(self) -> None:
+            self.did_init += 1
+
+        def execute(self) -> None:
+            self.did_exec += 1
+
+        def end(self, interrupted: bool) -> None:
+            if interrupted:
+                self.did_interrupt += 1
+                return
+            self.did_end += 1
+
+        def is_finished(self) -> bool:
+            self.did_finish += 1
+            return self.do_finish
+
+        def reset(self) -> None:
+            self.did_init = 0
+            self.did_exec = 0
+            self.did_end = 0
+            self.did_interrupt = 0
+            self.do_finish = False
+
+    class MySubsystem(Subsystem):
+
+        periodic_counter = 0
+
+        def periodic(self) -> None:
+            self.periodic_counter += 1
+
+        def reset(self) -> None:
+            self.periodic_counter = 0
+
+    action = MyAction()
+    subsystem = MySubsystem()
+    command1 = MyCommand("Command1", subsystem)
+    command2 = MyCommand("Command2", subsystem)
+
+    action.when_activated(lambda: (
+        SequentialCommandGroup(
+            None,
+            command1,
+            command2,
+        )
+    ))
+
+    # Activate the action
+    action.state = True
+
+    scheduler.run_once()
+
+    assert isinstance(subsystem.current_command, SequentialCommandGroup)
+    assert command1.did_init == 1
+
+    scheduler.run_once()
+    assert command1.did_init == 1
+    assert command1.did_exec == 1
+    assert command1.did_finish == 1
+
+    command1.do_finish = True
+
+    scheduler.run_once()
+
+    assert command1.did_end == 1
+
+    scheduler.run_once()
+
+    assert command2.did_init == 1

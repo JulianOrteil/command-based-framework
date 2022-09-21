@@ -1,7 +1,7 @@
 import sys
 from contextlib import suppress
 from types import TracebackType
-from typing import Optional, Type, Union
+from typing import Callable, Optional, Type, Union
 
 if sys.version_info >= (3, 10):
     # WPS433: Found nested import
@@ -16,6 +16,7 @@ with suppress(ImportError):
     from command_based_framework.commands import Command, CommandGroup
 
 CommandType: TypeAlias = Union["Command", "CommandGroup"]
+CallableCommandType: TypeAlias = Union[CommandType, Callable[[], CommandType]]
 
 
 class ContextManagerMixin(object):

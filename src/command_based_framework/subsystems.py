@@ -1,11 +1,7 @@
-from contextlib import suppress
 from typing import Optional
 
-from command_based_framework._common import ContextManagerMixin
+from command_based_framework._common import CommandType, ContextManagerMixin
 from command_based_framework.scheduler import Scheduler
-
-with suppress(ImportError):
-    from command_based_framework.commands import Command
 
 
 class Subsystem(ContextManagerMixin):
@@ -20,11 +16,11 @@ class Subsystem(ContextManagerMixin):
     _name: str
 
     # The command that is currently using this subsystem
-    _current_command: Optional["Command"]
+    _current_command: Optional[CommandType]
 
     # The command that will run whenever this subsystem is not being
     # used
-    _default_command: Optional["Command"]
+    _default_command: Optional[CommandType]
 
     def __init__(self, name: Optional[str] = None) -> None:
         """Creates a new `Subsystem` instance.
@@ -45,7 +41,7 @@ class Subsystem(ContextManagerMixin):
         Scheduler.instance.register_subsystem(self)  # type: ignore
 
     @property
-    def current_command(self) -> Optional["Command"]:
+    def current_command(self) -> Optional[CommandType]:
         """The command that is currently using this subsystem.
 
         This property is controlled by the scheduler and should not be
@@ -57,11 +53,11 @@ class Subsystem(ContextManagerMixin):
         return self._current_command
 
     @current_command.setter
-    def current_command(self, command: Optional["Command"]) -> None:
+    def current_command(self, command: Optional[CommandType]) -> None:
         self._current_command = command
 
     @property
-    def default_command(self) -> Optional["Command"]:
+    def default_command(self) -> Optional[CommandType]:
         """The command to run when no other command is active.
 
         If not specified, then this subsystem will remain idle.
@@ -72,7 +68,7 @@ class Subsystem(ContextManagerMixin):
         return self._default_command
 
     @default_command.setter
-    def default_command(self, command: Optional["Command"]) -> None:
+    def default_command(self, command: Optional[CommandType]) -> None:
         # Ensure the command requires this subsystem
         if command and self not in command.requirements:
             raise ValueError(

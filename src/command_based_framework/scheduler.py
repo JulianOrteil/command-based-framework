@@ -20,12 +20,12 @@ else:
 # Annotations only
 with suppress(ImportError):
     from command_based_framework.actions import Action, Condition  # pragma: no cover
-    from command_based_framework.commands import Command  # pragma: no cover
     from command_based_framework.subsystems import Subsystem  # pragma: no cover
 
+from command_based_framework._common import CallableCommandType, CommandType
 from command_based_framework.exceptions import SchedulerExistsError
 
-ConditionCommandType: TypeAlias = Dict["Condition", Set["Command"]]
+ConditionCommandType: TypeAlias = Dict["Condition", Set[CallableCommandType]]
 ActionStack: TypeAlias = Dict["Action", ConditionCommandType]
 
 
@@ -125,7 +125,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     # All stack has references to all commands in any stack, regardless
     # of status
-    _all_stack: Set["Command"]
+    _all_stack: Set[CallableCommandType]
 
     # Action stack has references to the mappings between commands and
     # actions
@@ -133,19 +133,19 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     # Incoming stack has references to all commands that were just
     # scheduled
-    _incoming_stack: Set["Command"]
+    _incoming_stack: Set[CallableCommandType]
 
     # Scheduled stack has references to all commands that are normally
     # executing
-    _scheduled_stack: Set["Command"]
+    _scheduled_stack: Set[CommandType]
 
     # Ended stack has references to all commands that need to be ended
     # normally
-    _ended_stack: Set["Command"]
+    _ended_stack: Set[CommandType]
 
     # Cancel stack has references to all commands that need to be
     # canceled
-    _cancel_stack: Set["Command"]
+    _cancel_stack: Set[CommandType]
 
     # Subsystem stack has references to all subsystems that need to
     # have their periodic methods called
@@ -191,7 +191,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def bind_command(
         self,
         action: "Action",
-        command: "Command",
+        command: CallableCommandType,
         condition: "Condition",
     ) -> None:
         """Bind `command` to `action` to be scheduled on `condition`."""
@@ -209,7 +209,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._actions_stack[action] = current_condition_stack
         self._all_stack.add(command)
 
-    def cancel(self, *commands: "Command") -> None:  # noqa: WPS213
+    def cancel(self, *commands: CommandType) -> None:  # noqa: C901, WPS213
         """Immediately cancel and interrupt any number of commands.
 
         If `commands` is not provided, interrupt all scheduled and
@@ -224,6 +224,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
         cancel_all = not commands
         all_commands = set(commands) or self._all_stack
         for command in all_commands.copy():
+            # Ignore commands which are callables
+            if callable(command):
+                continue
+
             try:
                 command.end(interrupted=True)
             except Exception:
@@ -406,7 +410,14 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 subsystem.periodic()
 
     def _init_commands(self) -> None:  # noqa: C901, WPS231
-        for command in self._incoming_stack.copy():
+        for command_callable in self._incoming_stack.copy():
+            # If the "command" is a callable, run it and get the output
+            command: CommandType = (
+                command_callable() if callable(command_callable) else command_callable
+            )
+            self._incoming_stack.remove(command_callable)
+            self._incoming_stack.add(command)
+
             # If the command is already scheduled, don't init
             if command in self._scheduled_stack:
                 self._incoming_stack.remove(command)
@@ -419,7 +430,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 if cmd == command:
                     continue
 
-                if cmd.requirements.intersection(command.requirements):
+                if cmd.requirements.intersection(command.requirements):  # type: ignore
                     self._incoming_stack.remove(command)
                     skip = True
             if skip:
@@ -468,7 +479,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
                     Condition.cancel_when_activated,
                     set(),
                 )
-                self._cancel_stack.update(commands)
+                self._cancel_stack.update(commands)  # type: ignore
 
                 # When activated
                 commands = conditions_commands.setdefault(
@@ -484,7 +495,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 )
                 for command in commands:
                     if command in self._scheduled_stack:
-                        self._ended_stack.add(command)
+                        self._ended_stack.add(command)  # type: ignore
                     else:
                         self._incoming_stack.add(command)
             elif action_state == (True, True):
@@ -503,7 +514,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 # Need to be able to deactivate when held, which occurs
                 # at the same time as when deactivated
                 commands = conditions_commands.setdefault(Condition.when_held, set())
-                self._ended_stack.update(commands)
+                self._ended_stack.update(commands)  # type: ignore
 
     def _reset_all_stacks(self) -> None:
         self._all_stack = set()
@@ -518,6 +529,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
         for subsystem in self._subsystem_stack:
             if subsystem.default_command and not subsystem.current_command:
                 for command in self._incoming_stack.union(self._scheduled_stack):
+                    # Ignore commands which are callables
+                    if callable(command):
+                        continue
+
                     if subsystem in command.requirements:
                         break
                 else:
@@ -529,7 +544,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._scheduled_stack.difference_update(self._cancel_stack)
 
         # Move incoming commands to scheduled stack
-        self._scheduled_stack.update(self._incoming_stack)
+        self._scheduled_stack.update(self._incoming_stack)  # type: ignore
         self._all_stack.update(self._scheduled_stack)
 
         # Reset incoming, ended, and interrupted stacks

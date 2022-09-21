@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
-from command_based_framework._common import ContextManagerMixin
+# fmt: off
+from command_based_framework._common import CallableCommandType, CommandType, ContextManagerMixin
 from command_based_framework.commands import Command
 from command_based_framework.scheduler import Scheduler
+
+# fmt: on
 
 
 class Condition(Enum):
@@ -59,8 +62,13 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
         """
         return False  # pragma: no cover
 
-    def cancel_when_activated(self, command: Command) -> None:
-        """Cancel `command` when this action is activated."""
+    def cancel_when_activated(self, command: CommandType) -> None:
+        """Cancel `command` when this action is activated.
+
+        Args:
+            command: A :class:`~command_based_framework.commands.Command`
+                or :class:`~command_based_framework.commands.CommandGroup`.
+        """
         Scheduler.instance.bind_command(  # type: ignore
             self,
             command,
@@ -74,6 +82,10 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
         command runs. The same button is pressed again, but the command
         exits. The cycle repeats when the button is pressed for a third
         time.
+
+        Args:
+            command: A :class:`~command_based_framework.commands.Command`
+                or :class:`~command_based_framework.commands.CommandGroup`.
         """
         Scheduler.instance.bind_command(  # type: ignore
             self,
@@ -81,24 +93,42 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
             Condition.toggle_when_activated,
         )
 
-    def when_activated(self, command: Command) -> None:
-        """Schedule `command` when this action is activated."""
+    def when_activated(self, command: CallableCommandType) -> None:
+        """Schedule `command` when this action is activated.
+
+        Args:
+            command: A :class:`~command_based_framework.commands.Command`,
+                :class:`~command_based_framework.commands.CommandGroup`,
+                or callable which returns one of the former.
+        """
         Scheduler.instance.bind_command(  # type: ignore
             self,
             command,
             Condition.when_activated,
         )
 
-    def when_deactivated(self, command: Command) -> None:
-        """Schedule `command` when this action is deactivated."""
+    def when_deactivated(self, command: CallableCommandType) -> None:
+        """Schedule `command` when this action is deactivated.
+
+        Args:
+            command: A :class:`~command_based_framework.commands.Command`,
+                :class:`~command_based_framework.commands.CommandGroup`,
+                or callable which returns one of the former.
+        """
         Scheduler.instance.bind_command(  # type: ignore
             self,
             command,
             Condition.when_deactivated,
         )
 
-    def when_held(self, command: Command) -> None:
-        """Schedule `command` when this action is perpetually activated."""
+    def when_held(self, command: CallableCommandType) -> None:
+        """Schedule `command` when this action is perpetually activated.
+
+        Args:
+            command: A :class:`~command_based_framework.commands.Command`,
+                :class:`~command_based_framework.commands.CommandGroup`,
+                or callable which returns one of the former.
+        """
         Scheduler.instance.bind_command(  # type: ignore
             self,
             command,
