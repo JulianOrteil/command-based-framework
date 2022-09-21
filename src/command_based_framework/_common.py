@@ -1,5 +1,21 @@
+import sys
+from contextlib import suppress
 from types import TracebackType
-from typing import Optional, Type
+from typing import Optional, Type, Union
+
+if sys.version_info >= (3, 10):
+    # WPS433: Found nested import
+    # WPS440: Found block variables overlap
+    from typing import TypeAlias  # noqa: WPS433, WPS440; pragma: no cover
+else:
+    # WPS433: Found nested import
+    # WPS440: Found block variables overlap
+    from typing_extensions import TypeAlias  # noqa: WPS433, WPS440; pragma: no cover
+
+with suppress(ImportError):
+    from command_based_framework.commands import Command, CommandGroup
+
+CommandType: TypeAlias = Union["Command", "CommandGroup"]
 
 
 class ContextManagerMixin(object):

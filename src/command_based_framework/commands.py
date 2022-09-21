@@ -5,22 +5,11 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier, Event
 from types import TracebackType
-from typing import Iterator, Optional, Set, Tuple, Type, Union
+from typing import Iterator, Optional, Set, Tuple, Type
 
-if sys.version_info >= (3, 10):
-    # WPS433: Found nested import
-    # WPS440: Found block variables overlap
-    from typing import TypeAlias  # noqa: WPS433, WPS440; pragma: no cover
-else:
-    # WPS433: Found nested import
-    # WPS440: Found block variables overlap
-    from typing_extensions import TypeAlias  # noqa: WPS433, WPS440; pragma: no cover
-
-from command_based_framework._common import ContextManagerMixin
+from command_based_framework._common import ContextManagerMixin, CommandType
 from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
-
-CommandType: TypeAlias = Union["Command", "CommandGroup"]
 
 
 class Command(ABC, ContextManagerMixin):  # noqa: WPS214
