@@ -5,6 +5,28 @@ Changelog
 Development version
 ===================
 
+Version 1.3.0, 2022-XX-XX
+-------------------------
+
+- Add `ConditionalCommand`
+- Add `FunctionalCommand`
+- Add `InstantCommand`
+- Add `RunCommand`
+- Add `PerpetualCommand`
+- Add `StartEndCommand`
+- Add `WaitCommand`
+- Add `WaitUntilCommand`
+- Add `ParallelRaceGroup`
+- Add `ParallelDeadlineGroup`
+- Add `Command.with_timeout`
+- Add `Command.until`
+- Add `Command.and_then`
+- Add `Command.before_starting`
+- Add `Command.along_with`
+- Add `Command.race_with`
+- Add `Command.deadline_with`
+- Add `Command.perpetually`
+
 Current versions
 ================
 
