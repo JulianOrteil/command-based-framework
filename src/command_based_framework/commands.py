@@ -7,7 +7,7 @@ from threading import Barrier, Event
 from types import TracebackType
 from typing import Iterator, Optional, Set, Tuple, Type
 
-from command_based_framework._common import ContextManagerMixin, CommandType
+from command_based_framework._common import CommandType, ContextManagerMixin
 from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
 
