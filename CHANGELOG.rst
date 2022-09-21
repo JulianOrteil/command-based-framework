@@ -13,6 +13,7 @@ Version 1.3.0, 2022-XX-XX
 - Add `InstantCommand`
 - Add `RunCommand`
 - Add `PerpetualCommand`
+- Add `ScheduleCommand`
 - Add `StartEndCommand`
 - Add `WaitCommand`
 - Add `WaitUntilCommand`
@@ -26,6 +27,7 @@ Version 1.3.0, 2022-XX-XX
 - Add `Command.race_with`
 - Add `Command.deadline_with`
 - Add `Command.perpetually`
+- Add command suppliers support
 
 Current versions
 ================
