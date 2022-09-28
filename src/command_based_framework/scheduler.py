@@ -6,7 +6,7 @@ from abc import ABCMeta
 from concurrent.futures import Future
 from contextlib import suppress
 from threading import Event, Thread
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Type
 
 if sys.version_info >= (3, 10):
     # WPS433: Found nested import
@@ -19,12 +19,16 @@ else:
 
 # Annotations only
 with suppress(ImportError):
+    from command_based_framework.commands import (  # pragma: no cover
+        CommandState as _CommandState,
+    )
     from command_based_framework.actions import Action, Condition  # pragma: no cover
     from command_based_framework.subsystems import Subsystem  # pragma: no cover
 
 from command_based_framework._common import CallableCommandType, CommandType
 from command_based_framework.exceptions import SchedulerExistsError
 
+CommandState: Type["_CommandState"]
 ConditionCommandType: TypeAlias = Dict["Condition", Set[CallableCommandType]]
 ActionStack: TypeAlias = Dict["Action", ConditionCommandType]
 
@@ -164,6 +168,12 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._reset_all_stacks()
         self._exec_sentinel = Event()
 
+        # Prevent circular import
+        from command_based_framework.commands import CommandState as _CS  # noqa: N814
+
+        global CommandState  # noqa: WPS420
+        CommandState = _CS  # noqa: WPS442
+
     @property
     def clock_speed(self) -> float:
         """How many times the scheduler will attempt to run per second.
@@ -209,7 +219,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         self._actions_stack[action] = current_condition_stack
         self._all_stack.add(command)
 
-    def cancel(self, *commands: CommandType) -> None:  # noqa: C901, WPS213
+    def cancel(self, *commands: CommandType) -> None:  # noqa: C901, WPS213, WPS231
         """Immediately cancel and interrupt any number of commands.
 
         If `commands` is not provided, interrupt all scheduled and
@@ -228,6 +238,11 @@ class Scheduler(object, metaclass=SchedulerMeta):
             if callable(command):
                 continue
 
+            # Ignore commands that are idle
+            if command.state == CommandState.idle:
+                continue
+
+            command.state = CommandState.idle
             try:
                 command.end(interrupted=True)
             except Exception:
@@ -357,15 +372,17 @@ class Scheduler(object, metaclass=SchedulerMeta):
             self.postend_teardown()
 
             # Set the future as finished
-            if fut:
+            if fut and not fut.done():
                 fut.set_result(None)
 
     def _end_commands(self) -> None:
         # End commands normally
         for cmd in self._ended_stack:
+            cmd.state = CommandState.idle
             with cmd:
                 cmd.end(interrupted=False)
-            self._scheduled_stack.remove(cmd)
+            with suppress(KeyError):
+                self._scheduled_stack.remove(cmd)
 
             # Reset all requirements' current commands to none
             for requirement in cmd.requirements:
@@ -382,6 +399,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
         for command in self._scheduled_stack.copy():
             # Check if the command is finished before executing it
             # Safer to do this check first
+            command.state = CommandState.executing
             if command.is_finished():
                 with command:
                     command.end(interrupted=False)
@@ -430,6 +448,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
                 if cmd == command:
                     continue
 
+                # Skip functions
+                if callable(command):
+                    continue
+
                 if cmd.requirements.intersection(command.requirements):  # type: ignore
                     self._incoming_stack.remove(command)
                     skip = True
@@ -451,6 +473,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
             # Initialize this command
             with command:
+                command.state = CommandState.initialized
                 command.initialize()
 
             if command.needs_interrupt:

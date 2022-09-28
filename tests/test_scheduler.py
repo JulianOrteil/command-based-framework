@@ -5,7 +5,7 @@ import time
 import pytest
 
 from command_based_framework.actions import Action, Condition
-from command_based_framework.commands import Command, ParallelCommandGroup, SequentialCommandGroup
+from command_based_framework.commands import Command, CommandState, ParallelCommandGroup, SequentialCommandGroup
 from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
 
@@ -220,10 +220,6 @@ def test_cancel_command() -> None:
     # Verify the stack is empty
     assert not scheduler._actions_stack
 
-    class MyAction(Action):
-
-        def poll(self) -> bool:
-            return True
 
     class MyCommand(Command):
 
@@ -239,8 +235,8 @@ def test_cancel_command() -> None:
             self.canceled_counter += 1
             assert interrupted
 
-    action = MyAction()
     command = MyCommand()
+    command.state = CommandState.executing
 
     # Inject the command into the scheduler's stack
     scheduler._all_stack.add(command)
@@ -263,6 +259,7 @@ def test_command_raises_runtime_warning_in_cancel() -> None:
     assert not scheduler._actions_stack
 
     class MyCommand(Command):
+        _state = CommandState.executing
 
         def is_finished(self) -> bool:
             return True
@@ -274,6 +271,7 @@ def test_command_raises_runtime_warning_in_cancel() -> None:
             raise ValueError("test error")
 
     command = MyCommand()
+    command.state = CommandState.executing
 
     # Artificially inject the command into the stack
     scheduler._all_stack.add(command)
@@ -285,6 +283,7 @@ def test_command_raises_runtime_warning_in_cancel() -> None:
 
     # Re-inject the command
     scheduler._all_stack.add(command)
+    command.state = CommandState.executing
 
     # Verify the command fails and raises a warning if explicitly
     # specified
@@ -798,8 +797,10 @@ def test_scheduled_incoming_conflicting_commands() -> None:
     subsystem = MySubsystem()
     subsystem2 = MySubsystem()
     command1 = MyCommand("Command1", subsystem)
+    command1.state = CommandState.executing
     command2 = MyCommand("Command2", subsystem)
     command3 = MyCommand("Command3", subsystem2)
+    command3.state = CommandState.executing
 
     # Inject one command into the scheduled stack and the other into the
     # incoming stack

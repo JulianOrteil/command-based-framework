@@ -3,6 +3,7 @@ import sys
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum, auto
 from threading import Barrier, Event
 from types import TracebackType
 from typing import Iterator, Optional, Set, Tuple, Type
@@ -10,6 +11,19 @@ from typing import Iterator, Optional, Set, Tuple, Type
 from command_based_framework._common import CommandType, ContextManagerMixin
 from command_based_framework.scheduler import Scheduler
 from command_based_framework.subsystems import Subsystem
+
+
+class CommandState(Enum):
+    """The state of a command in the scheduler."""
+
+    # Command is not scheduled (cancelled, ended, not yet ran)
+    idle = auto()
+
+    # Command has initialized
+    initialized = auto()
+
+    # Command is executing
+    executing = auto()
 
 
 class Command(ABC, ContextManagerMixin):  # noqa: WPS214
@@ -56,6 +70,10 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
     # encountering an error
     _needs_interrupt: bool
 
+    # Tracks the current state of the command so the scheduler can more
+    # easily determine how to schedule it
+    _state: CommandState
+
     def __init__(self, name: Optional[str] = None, *subsystems: Subsystem) -> None:
         """Creates a new `Command` instance.
 
@@ -70,6 +88,7 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         self._name = name or self.__class__.__name__
         self._requirements = set()
         self._needs_interrupt = False
+        self._state = CommandState.idle
 
         # Register each subsystem as a requirements
         self.add_requirements(*subsystems)
@@ -132,6 +151,18 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         This is a read-only property.
         """
         return self._requirements
+
+    @property
+    def state(self) -> CommandState:
+        """The state of the command.
+
+        Automatically set by the scheduler.
+        """
+        return self._state
+
+    @state.setter
+    def state(self, state: CommandState) -> None:
+        self._state = state
 
     def add_requirements(self, *subsystems: Subsystem) -> None:
         """Register any number of subsystems as a command requirement.
@@ -197,6 +228,39 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         :return: `True` if the command should end, otherwise `False`.
         :rtype: bool
         """  # noqa: E501
+
+
+class WaitCommand(Command):
+    """A command that waits for a specified period of time."""
+
+    _delay: float
+    _start: float
+
+    def __init__(self, name: Optional[str] = None, delay: float = 0) -> None:
+        """Creates a new :class:`~WaitCommand` instance.
+
+        Args:
+            name: The name of the command. If not provided, the class
+                name is used instead.
+            delay: How long to wait for in seconds. Defaults to `0` (no
+                wait).
+        """
+        super().__init__(name)
+        self._delay = delay
+
+    def initialize(self) -> None:
+        """Record the start time."""
+        self._start = time.time()
+
+    def execute(self) -> None:
+        """Not implemented."""
+
+    def is_finished(self) -> bool:
+        """Check whether the specified amount of time has passed."""
+        return time.time() - self._start >= self._delay
+
+    def end(self, interrupted: bool) -> None:
+        """Not implemented."""
 
 
 class CommandGroup(Command):
