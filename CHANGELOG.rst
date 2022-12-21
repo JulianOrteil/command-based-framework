@@ -33,7 +33,7 @@ Version 1.4.0, 2023-XX-XX
 Current versions
 ================
 
-Version 1.3.0, 2022-XX-XX
+Version 1.3.0, 2022-12-20
 -------------------------
 
 - Various bugfixes and improvements
