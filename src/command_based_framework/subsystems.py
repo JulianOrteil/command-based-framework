@@ -28,9 +28,9 @@ class Subsystem(ContextManagerMixin):
         When created, the subsystem will automatically register itself
         with the scheduler.
 
-        :param name: The name of the subsystem. If not provided, the
-            class name is used instead.
-        :type name: str, optional
+        Args:
+            name: The name of the command. If not provided, the default,
+                then the name of the class is used.
         """
         super().__init__()
         self._name = name or self.__class__.__name__
@@ -38,7 +38,7 @@ class Subsystem(ContextManagerMixin):
         self._default_command = None
 
         # Register this subsystem in the scheduler's stack
-        Scheduler.instance.register_subsystem(self)  # type: ignore
+        Scheduler.get_instance().register_subsystem(self)  # type: ignore
 
     @property
     def current_command(self) -> Optional[CommandType]:
@@ -63,7 +63,7 @@ class Subsystem(ContextManagerMixin):
         If not specified, then this subsystem will remain idle.
 
         Default commands **must** require the subsystems they are
-        assigned to. A :py:exc:`ValueError` will be raised otherwise.
+        assigned to or a :exc:`ValueError` is raised.
         """
         return self._default_command
 
@@ -94,8 +94,8 @@ class Subsystem(ContextManagerMixin):
         return self._name
 
     def periodic(self) -> None:
-        """Periodically called when the subsystem is required by a scheduled :py:class:`~command_based_framework.commands.Command`.
+        """Periodically called when the subsystem is required by a scheduled :class:`~command_based_framework.commands.Command`.
 
         Override this behavior to always execute by calling
-        :py:meth:`~command_based_framework.scheduler.Scheduler.register_subsystem`.
+        :meth:`~command_based_framework.scheduler.Scheduler.register_subsystem`.
         """  # noqa: E501

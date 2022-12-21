@@ -1,7 +1,6 @@
 import itertools
 import sys
 import time
-from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum, auto
 from threading import Barrier, Event
@@ -26,32 +25,28 @@ class CommandState(Enum):
     executing = auto()
 
 
-class Command(ABC, ContextManagerMixin):  # noqa: WPS214
-    """Executes a process when activated by an :py:class:`~command_based_framework.actions.Action`.
+class Command(ContextManagerMixin):  # noqa: WPS214
+    """Executes a process when activated by an :class:`~command_based_framework.actions.Action`.
 
     Commands dictate what subsystems do at what time. They are scheduled
-    when a :py:meth:`~command_based_framework.actions.Action.poll`
+    when a :meth:`~command_based_framework.actions.Action.poll`
     bound condition is met. Commands are also synchronous, meaning they
     are always blocking the scheduler's event loop and should complete
     quickly.
 
     Commands have the following life cycle in the scheduler:
 
-    **1.** New commands have their :py:meth:`~command_based_framework.commands.Command.initialize`
-    method called.
-
-    **2.** Actions bound to this command have their :py:meth:`~command_based_framework.actions.Action.poll`
-    method called. Depending on how a command is bound to an action, the
-    scheduler may skip directly to step 4 for a command.
-
-    **3.** The scheduler now periodically executes these new commands by
-    calling their :py:meth:`~command_based_framework.commands.Command.is_finished`
-    and :py:meth:`~command_based_framework.commands.Command.execute`
-    methods, in that order.
-
-    **4.** Whether through an action or :py:meth:`~command_based_framework.commands.Command.is_finished`,
-    commands have their :py:meth:`~command_based_framework.commands.Command.end`
-    methods called and are removed from the stack.
+    - New commands have their :meth:`~Command.initialize` method called.
+    - Actions bound to this command have their
+        :meth:`~command_based_framework.actions.Action.poll` method called.
+        Depending on how a command is bound to an action, the scheduler may
+        skip directly to step 4 for a command.
+    - The scheduler now periodically executes these new commands by
+        calling their :meth:`~Command.is_finished` and
+        :meth:`~Command.execute` methods, in that order.
+    - Whether through an interrupt or :meth:`~Command.is_finished`,
+        commands have their :meth:`~Command.end` methods called and are
+        removed from the scheduled command stack.
 
     Commands also maintain their state after being unscheduled as long
     as a reference is maintained. The scheduler maintains a reference as
@@ -75,15 +70,13 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
     _state: CommandState
 
     def __init__(self, name: Optional[str] = None, *subsystems: Subsystem) -> None:
-        """Creates a new `Command` instance.
+        """Creates a new :class:`Command` instance.
 
-        :param name: The name of the command. If not provided, the class
-            name is used instead.
-        :type name: str, optional
-        :param subsystems: Variable length of subsystems to
-            automatically require.
-        :type subsystems: tuple
-        """
+        Args:
+            name: The name of the command. If not provided, the default,
+                then the name of the class is used.
+            subsystems: Variable length of subsystems the command uses.
+        """  # noqa: RST203
         super().__init__()
         self._name = name or self.__class__.__name__
         self._requirements = set()
@@ -175,59 +168,39 @@ class Command(ABC, ContextManagerMixin):  # noqa: WPS214
         """
         self._requirements.update(set(subsystems))
 
-    def handle_exception(
-        self,
-        exc_type: Type[BaseException],
-        exc: BaseException,
-        traceback: TracebackType,
-    ) -> bool:
-        """Called when :py:meth:`~command_based_framework.commands.Command.execute` raises an error.
-
-        The scheduler uses the output of this method to determine
-        whether the command should be immediately interrupted.
-
-        :param exc_type: The type of exception raised.
-        :type exc_type: :py:class:`Type`
-        :param exc: The exception raised.
-        :type exc: :py:class:`Exception`
-        :param traceback: The frame traceback of the error.
-        :type traceback: :py:class:`Traceback`
-
-        :return: `True` to indicate the error is handled. All other
-            returns to the scheduler will be interpreted as the command
-            needing to be immediately interrupted.
-        :rtype: bool
-        """  # noqa: DAR202
-
     def initialize(self) -> None:
         """Called each time the command in scheduled.
 
         Any initialization or pre-execution code should go here.
         """
+        raise NotImplementedError
 
-    @abstractmethod
     def execute(self) -> None:
         """Periodically called while the command is scheduled.
 
         All execution code should go here.
         """
+        raise NotImplementedError
 
     def end(self, interrupted: bool) -> None:
         """Called once the command has been unscheduled.
 
         Any clean up or post-execution code should go here.
 
-        :param interrupted: the command was interrupted, not ended.
-        :type interrupted: bool
-        """
+        Args:
+            interrupted: Flag indicating if the command was interrupted
+                and needs to end. Also means
+                :meth:`~Command.is_finished` was not checked.
+        """  # noqa: DAR401
+        raise NotImplementedError
 
-    @abstractmethod
     def is_finished(self) -> bool:
-        """Periodically called before :py:meth:`~command_based_framework.commands.Command.execute` while the command is scheduled.
+        """Periodically called before :meth:`~Command.execute` while the command is scheduled.
 
-        :return: `True` if the command should end, otherwise `False`.
-        :rtype: bool
-        """  # noqa: E501
+        Returns:
+            `True` if the command should end.
+        """  # noqa: E501, DAR202, DAR401
+        raise NotImplementedError
 
 
 class WaitCommand(Command):
@@ -330,8 +303,8 @@ class SequentialCommandGroup(CommandGroup):
         """Execute the currently sequenced command."""
         # mypy fix, check if self._current_command is set
         if not self._current_command:  # pragma: no cover
-            self._end_of_sequence = True  # pragma: no cover
-            return  # pragma: no cover
+            self._end_of_sequence = True
+            return
 
         # Check if the current command has finished
         # If so, end it and prepare the next one
@@ -384,12 +357,16 @@ class ParallelCommandGroup(CommandGroup):
         name: Optional[str] = None,
         *commands: CommandType,
     ) -> None:
-        """Creates a new :py:class:`~ParallelCommandGroup` instance.
+        """Creates a new :class:`ParallelCommandGroup` instance.
 
         Args:
             name: The name of the command group. If not provided, the
                 class name is used instead.
             commands: Variable length of commands to group.
+
+        Raises:
+            ValueError: Overlapping requirements were detected amongst
+                the commands provided.
         """  # noqa: RST203
         # Don't pass the commands to the parent class, we have to
         # implement custom checking of them here
@@ -465,7 +442,7 @@ class ParallelCommandGroup(CommandGroup):
                 # Execute the current command
                 command.execute()
 
-                time.sleep(Scheduler.instance.clock_speed)  # type: ignore
+                time.sleep(Scheduler.get_instance().clock_speed)  # type: ignore
         except Exception:
             # Handle errors
             command.handle_exception(*sys.exc_info())

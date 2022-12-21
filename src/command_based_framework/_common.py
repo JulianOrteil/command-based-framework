@@ -22,7 +22,7 @@ CallableCommandType: TypeAlias = Union[CommandType, Callable[[], CommandType]]
 class ContextManagerMixin(object):
     """Mixin providing context manager support.
 
-    Also contains a :py:meth:`~command_based_framework._command.ContextManagerMixin.handle_exception`
+    Also contains a :meth:`~ContextManagerMixin.handle_exception`
     which is called by the scheduler whenever the parent child instance
     raises an error. Use this method to process the exception.
     """  # noqa: E501
@@ -56,17 +56,14 @@ class ContextManagerMixin(object):
         If a command, the scheduler uses the output of this method to
         determine whether the command should be immediately interrupted.
 
-        :param exc_type: The type of exception raised.
-        :type exc_type: :py:class:`Type`
-        :param exc: The exception raised.
-        :type exc: :py:class:`Exception`
-        :param traceback: The frame traceback of the error.
-        :type traceback: :py:class:`Traceback`
+        Args:
+            exc_type: The type of exception raised.
+            exc: The exception itself.
+            traceback: The stack trace for logging purposes.
 
-        :return: `True` to indicate the error is handled. All other
-            returns to the scheduler will be interpreted as the command
-            needing to be immediately interrupted, if the child class is
-            a command.
-        :rtype: bool
-        """  # noqa: DAR202
+        Returns:
+            `True` to indicate the error has been handled or `False`
+            otherwise. If `False`, the command raising the error will be
+            interrupted.
+        """
         return False  # pragma: no cover

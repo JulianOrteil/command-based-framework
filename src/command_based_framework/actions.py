@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from enum import Enum, auto
 
 # fmt: off
@@ -19,18 +19,17 @@ class Condition(Enum):
     when_held = auto()
 
 
-class Action(ABC, ContextManagerMixin):  # noqa: WPS214
-    """Schedules :py:class:`~command_based_framework.commands.Command` based on a condition being met.
+class Action(ContextManagerMixin):  # noqa: WPS214
+    """Schedules :class:`~command_based_framework.commands.Command` based on a condition being met.
 
     Actions determine when commands are scheduled/executed. To do this,
-    the scheduler periodically runs the :py:meth:`~command_based_framework.actions.Action.poll`
+    the scheduler periodically runs the :meth:`~.Action.poll`
     method. Any arbitrary condition, or multiple conditions, can be
-    implemented in :py:meth:`~command_based_framework.actions.Action.poll`.
+    implemented in :meth:`~Action.poll`.
 
     To setup when commands are scheduled, bind them using any of the
     `when` methods. Attempts to bind a command multiple times in the
-    same action will result in the previous binding being replaced by
-    the new one.
+    same action will result in the previous binding being overridden.
 
     A command can be bound to a single or multiple actions.
     """  # noqa: E501
@@ -57,8 +56,9 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
     def poll(self) -> bool:
         """Check if the condition to activate commands are met.
 
-        Only return `True` when all conditions are met for this action
-        to activate and schedule bound commands.
+        Returns:
+            `True` when all conditions are met for this action
+            to activate and bound commands should be scheduled.
         """
         return False  # pragma: no cover
 
@@ -69,7 +69,7 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
             command: A :class:`~command_based_framework.commands.Command`
                 or :class:`~command_based_framework.commands.CommandGroup`.
         """
-        Scheduler.instance.bind_command(  # type: ignore
+        Scheduler.get_instance().bind_command(  # type: ignore
             self,
             command,
             Condition.cancel_when_activated,
@@ -84,10 +84,12 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
         time.
 
         Args:
-            command: A :class:`~command_based_framework.commands.Command`
-                or :class:`~command_based_framework.commands.CommandGroup`.
+            command: A
+                :class:`~command_based_framework.commands.Command`
+                or
+                :class:`~command_based_framework.commands.CommandGroup`.
         """
-        Scheduler.instance.bind_command(  # type: ignore
+        Scheduler.get_instance().bind_command(  # type: ignore
             self,
             command,
             Condition.toggle_when_activated,
@@ -97,11 +99,12 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
         """Schedule `command` when this action is activated.
 
         Args:
-            command: A :class:`~command_based_framework.commands.Command`,
+            command: A
+                :class:`~command_based_framework.commands.Command`,
                 :class:`~command_based_framework.commands.CommandGroup`,
                 or callable which returns one of the former.
         """
-        Scheduler.instance.bind_command(  # type: ignore
+        Scheduler.get_instance().bind_command(  # type: ignore
             self,
             command,
             Condition.when_activated,
@@ -111,11 +114,12 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
         """Schedule `command` when this action is deactivated.
 
         Args:
-            command: A :class:`~command_based_framework.commands.Command`,
+            command: A
+                :class:`~command_based_framework.commands.Command`,
                 :class:`~command_based_framework.commands.CommandGroup`,
                 or callable which returns one of the former.
         """
-        Scheduler.instance.bind_command(  # type: ignore
+        Scheduler.get_instance().bind_command(  # type: ignore
             self,
             command,
             Condition.when_deactivated,
@@ -125,11 +129,12 @@ class Action(ABC, ContextManagerMixin):  # noqa: WPS214
         """Schedule `command` when this action is perpetually activated.
 
         Args:
-            command: A :class:`~command_based_framework.commands.Command`,
+            command: A
+                :class:`~command_based_framework.commands.Command`,
                 :class:`~command_based_framework.commands.CommandGroup`,
                 or callable which returns one of the former.
         """
-        Scheduler.instance.bind_command(  # type: ignore
+        Scheduler.get_instance().bind_command(  # type: ignore
             self,
             command,
             Condition.when_held,

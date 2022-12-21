@@ -6,7 +6,7 @@ from command_based_framework.subsystems import Subsystem
 
 def test_name() -> None:
     """Verify the name of subsystems are set properly."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
 
     class MySubsystem(Subsystem):
         def is_finished(self) -> bool:
@@ -23,7 +23,7 @@ def test_name() -> None:
 
 def test_current_and_default_commands() -> None:
     """Verify current and default commands get set"""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
 
     class MyCommand(Command):
         def execute(self) -> None:

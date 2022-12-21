@@ -2,7 +2,6 @@ import sys
 import time
 import warnings
 import weakref
-from abc import ABCMeta
 from concurrent.futures import Future
 from contextlib import suppress
 from threading import Event, Thread
@@ -32,46 +31,11 @@ CommandState: Type["_CommandState"]
 ConditionCommandType: TypeAlias = Dict["Condition", Set[CallableCommandType]]
 ActionStack: TypeAlias = Dict["Action", ConditionCommandType]
 
-
-class SchedulerMeta(ABCMeta, type):  # noqa: B024
-    """Meta attributes for :py:class:`~command_based_framework.scheduler.Scheduler`.
-
-    All methods and attributes here exist in :py:class:`~command_based_framework.scheduler.Scheduler`.
-    """  # noqa: E501
-
-    _instance: Optional["weakref.ReferenceType[Scheduler]"]
-
-    @property
-    def instance(cls) -> Optional["Scheduler"]:
-        """The class-level instance attribute.
-
-        Ensures that no more than one scheduler instance exists else
-        undefined behavior regarding subsystems may occur.
-
-        :return: The :py:class:`~command_based_framework.scheduler.Scheduler`
-            instance if set, otherwise `None`.
-
-        :raise SchedulerExistsError:
-            An attempt was made to create multiple :py:class:`~command_based_framework.scheduler.Scheduler`
-            instances.
-        """  # noqa: E501
-        if cls._instance is None:
-            return None
-
-        return cls._instance()
-
-    @instance.setter
-    def instance(cls, instance: "Scheduler") -> None:
-        # Verify no previous instance exists
-        if Scheduler.instance:
-            raise SchedulerExistsError(
-                "a scheduler already exists, a new one cannot be created",
-            )
-        cls._instance = weakref.ref(instance)
+_INSTANCE: Optional["weakref.ref[Scheduler]"] = None
 
 
-class Scheduler(object, metaclass=SchedulerMeta):
-    """Schedules :py:class:`~command_based_framework.commands.Command` that control :py:class:`~command_based_framework.subsystems.Subsystem` when activated by :py:class:`~command_based_framework.actions.Action`.
+class Scheduler(object):
+    """Event loop of the framework.
 
     The scheduler handles events and resource management for the
     framework. A scheduler **must** exist **before** creating any
@@ -81,45 +45,45 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
     The scheduler has the following life-cycle:
 
-    **1**: All actions with bound `when` methods have their :py:meth:`~command_based_framework.actions.Action.poll`
-    methods called. For efficiency, unbound actions are ignored.
+    - All actions with bound `when` methods have their
+        :meth:`~command_based_framework.actions.Action.poll` methods
+        called. For efficiency, unbound actions are ignored.
+    - If a `when` condition is met, the related command(s) are
+        put onto the incoming stack. Any two commands which share
+        requirements (subsystems) will result in the currently scheduled
+        command being interrupted. Two newly scheduled commands with
+        shared requirements will result in only one of the commands
+        being scheduled and a warning being thrown about the conflict.
+    - Any subsystem not bound to a scheduled or incoming command
+        will have their default command scheduled, if there is one.
+    - Commands scheduled for interruption are interrupted. Commands
+        scheduled to exit because their
+        :meth:`~command_based_framework.commands.Command.is_finished`
+        returned `True`, are ended. Incoming commands are initialized.
+        Note that commands initialized in one frame will not be normally
+        executed until the next frame.
+    - Currently scheduled commands have their
+        :meth:`~command_based_framework.commands.Command.is_finished`
+        methods checked. If `True` is returned, the command(s) are
+        scheduled for exit and their
+        :meth:`~command_based_framework.commands.Command.execute` method
+        is ignored. Otherwise, their
+        :meth:`~command_based_framework.commands.Command.execute` method
+        is called. Commands are allowed to raise errors from their
+        :meth:`~command_based_framework.commands.Command.execute`
+        methods and their
+        :meth:`~command_based_framework._common.ContextManagerMixin.handle_exception`
+        method will be called with the output from :meth:`sys.exec_info`.
+        Return `True` to indicate the error is handled and normal
+        execution can continue. Any other return will result in the
+        command being immediately interrupted and de-stacked. A warning
+        about the error will be thrown.
+    - The main stack updates with interrupted/finished commands taken
+        off and initialized commands put on.
+    - This cycle repeats.
+    - Upon shutdown, all current commands are interrupted and
+        de-stacked. The scheduler then exits its event loop.
 
-    **2**: If a `when` condition is met, the related command(s) are
-    put onto the incoming stack. Any two commands which share
-    requirements (subsystems) will result in the currently scheduled
-    command being interrupted. Two newly scheduled commands with shared
-    requirements will result in only one of the commands being scheduled
-    and a warning being thrown about the conflict.
-
-    **3**: Any subsystem not bound to a scheduled or incoming command
-    will have their default command scheduled, if there is one.
-
-    **4**: Commands scheduled for interruption are interrupted. Commands
-    scheduled to exit because their :py:meth:`~command_based_framework.commands.Command.is_finished`
-    returned `True`, are ended. Incoming commands are initialized. Note
-    that commands initialized in one frame will not be normally executed
-    until the next frame.
-
-    **5**: Currently scheduled commands have their :py:meth:`~command_based_framework.commands.Command.is_finished`
-    methods checked. If `True` is returned, the command(s) are scheduled
-    for exit and their :py:meth:`~command_based_framework.commands.Command.execute`
-    method is ignored. Otherwise, their :py:meth:`~command_based_framework.commands.Command.execute`
-    method is called. Commands are allowed to raise errors from their
-    :py:meth:`~command_based_framework.commands.Command.execute` methods
-    and their :py:meth:`~command_based_framework.commands.Command.handle_exception`
-    method will be called with the output from :py:meth:`sys.exec_info`.
-    Return `True` to indicate the error is handled and normal execution
-    can continue. Any other return will result in the command being
-    immediately interrupted and de-stacked. A warning about the error
-    will be thrown.
-
-    **6**: The main stack updates with interrupted/finished commands
-    taken off and initialized commands put on.
-
-    **7**: This cycle repeats.
-
-    **8**: Upon shutdown, all current commands are interrupted and
-    de-stacked. The scheduler then exits its event loop.
     """  # noqa: E501
 
     _instance: Optional["weakref.ReferenceType[Scheduler]"] = None
@@ -162,8 +126,19 @@ class Scheduler(object, metaclass=SchedulerMeta):
     _exec_sentinel: Event
 
     def __init__(self) -> None:
-        """Creates a new :py:class:`~command_based_framework.scheduler.Scheduler` instance."""
-        Scheduler.instance = self
+        """Creates a new :class:`Scheduler` instance."""
+        # Check for existing instances
+        global _INSTANCE  # noqa: WPS420
+        if _INSTANCE and _INSTANCE():
+            raise SchedulerExistsError(
+                "a scheduler already exists, a new one cannot be created",
+            )
+
+        # Set the global instance
+        _INSTANCE = weakref.ref(self)  # noqa: WPS122, WPS442
+
+        # Continue with creation
+        super().__init__()
         self.clock_speed = 1 / 60
         self._reset_all_stacks()
         self._exec_sentinel = Event()
@@ -180,13 +155,10 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
         Because the scheduler is synchronous, long-running commands may
         degrade the ability for the scheduler to stick to this rate.
-        This value must always remain above 0 otherwise the CPU may be
-        deadlocked.
+        This value must always remain above 0 otherwise a
+        :exc:`ValueError` is raised to prevent CPU deadlock.
 
         Defaults to 60 ticks per second.
-
-        :raise ValueError: An attempt to set the clock speed at or below
-            0 was made.
         """
         return self._clock_speed
 
@@ -197,6 +169,14 @@ class Scheduler(object, metaclass=SchedulerMeta):
             raise ValueError("clock speed must be at or above 0")
 
         self._clock_speed = clock_speed
+
+    @classmethod
+    def get_instance(cls) -> Optional["Scheduler"]:  # noqa: WPS615
+        """Get the global scheduler instance."""
+        if _INSTANCE is not None:
+            return _INSTANCE()
+
+        return None
 
     def bind_command(
         self,
@@ -224,12 +204,13 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
         If `commands` is not provided, interrupt all scheduled and
         incoming commands. The `interrupt` parameter of the
-        :py:meth:`~command_based_framework.commands.Command.end` method
+        :meth:`~command_based_framework.commands.Command.end` method
         for each command will be `True`.
 
-        :param commands: Variable length of commands to cancel. If not
-            provided, interrupt all active commands.
-        :type commands: tuple
+        Args:
+            commands: Variable length of commands to cancel. If not
+                provided, interrupt all scheduled and initialized
+                commands.
         """
         cancel_all = not commands
         all_commands = set(commands) or self._all_stack
@@ -276,16 +257,16 @@ class Scheduler(object, metaclass=SchedulerMeta):
     def execute(self, fork: bool = False) -> Optional[Future]:
         """Perpetually run the event loop.
 
-        :param fork: Fork a separate thread to run the event loop in. If
-            `True`, a :py:class:`~concurrent.futures.Future` is
-            returned. If `False` and an attempt is made to shut the
-            event loop down via :py:meth:`~command_based_framework.scheduler.Scheduler.shutdown`
-            in the same thread, a deadlock will occur.
-        :type fork: bool
+        Args:
+            fork: Fork a separate thread to run the event loop in. If
+                `True`, a :class:`~concurrent.futures.Future` is
+                returned. If `False` and an attempt is made to shut the
+                event loop down via :meth:`~.Scheduler.shutdown`
+                in the same thread, a deadlock will occur.
 
-        :return: A :py:class:`~concurrent.futures.Future` if `fork` is
-            `True`, otherwise `None`.
-        :rtype: :py:class:`~concurrent.futures.Future`, None
+        Returns:
+            A :class:`~concurrent.futures.Future` if `fork` is
+                `True`, otherwise `None` upon exit.
         """  # noqa: DAR202
         # Reset the sentinel
         self._exec_sentinel.clear()
@@ -300,29 +281,29 @@ class Scheduler(object, metaclass=SchedulerMeta):
         return self._execute()  # type: ignore
 
     def prestart_setup(self) -> None:
-        """Run prestart checks and setup when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` is called."""  # noqa: E501
+        """Run prestart checks and setup when :meth:`~.Scheduler.execute` is called."""  # noqa: E501
 
     def postend_teardown(self) -> None:
-        """Run post-end code and teardown when :py:meth:`~command_based_framework.scheduler.Scheduler.execute` exits."""  # noqa: E501
+        """Run post-end code and teardown when :meth:`~.Scheduler.execute` exits."""  # noqa: E501
 
     def register_subsystem(self, subsystem: "Subsystem") -> None:
-        """Register a :py:class:`~command_based_framework.subsystems.Subsystem` with the scheduler.
+        """Register a :class:`~command_based_framework.subsystems.Subsystem` with the scheduler.
 
         This should be called automatically by the subsystem upon
         creation, so calling this directly should not be necessary.
         Registered subsystems allow for default commands to be scheduled
         if the subsystem is not active in another command.
 
-        :param subsystem: The subsystem to register.
-        :type subsystem: :py:class:`~command_based_framework.subsystems.Subsystem`
+        Args:
+            subsystem: The subsystem to register.
         """  # noqa: E501
         self._subsystem_stack.add(subsystem)
 
     def run_once(self) -> None:
         """Run one complete loop of the scheduler's event loop.
 
-        Note this does not call :py:meth:`~Scheduler.prestart_setup` or
-        :py:meth:`~Scheduler.postend_teardown`.
+        Note this does not call :meth:`~Scheduler.prestart_setup` or
+        :meth:`~Scheduler.postend_teardown`.
         """
         self._poll_actions()
         self._schedule_default_commands()
@@ -450,7 +431,7 @@ class Scheduler(object, metaclass=SchedulerMeta):
 
                 # Skip functions
                 if callable(command):
-                    continue
+                    continue  # type: ignore
 
                 if cmd.requirements.intersection(command.requirements):  # type: ignore
                     self._incoming_stack.remove(command)

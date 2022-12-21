@@ -21,7 +21,7 @@ Commands
    :show-inheritance:
 
 Exceptions
---------
+----------
 
 .. automodule:: command_based_framework.exceptions
    :members:

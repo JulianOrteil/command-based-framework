@@ -2,6 +2,7 @@ import math
 from threading import Thread
 import time
 
+import mock
 import pytest
 
 from command_based_framework.actions import Action, Condition
@@ -15,11 +16,11 @@ def test_tracking_scheduler_instances() -> None:
     from command_based_framework.exceptions import SchedulerExistsError
 
     # Verify no scheduler has been set
-    assert Scheduler.instance == None
+    assert Scheduler.get_instance() == None
 
     # Create a scheduler and verify it is tracked
     s = Scheduler()
-    assert Scheduler.instance == s
+    assert Scheduler.get_instance() == s
 
     # Ensure no new scheduler can be created
     with pytest.raises(SchedulerExistsError):
@@ -36,7 +37,7 @@ def test_tracking_scheduler_instances() -> None:
 
 def test_setting_clock_speed() -> None:
     """Verify the clock speed is set properly."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
 
     assert math.isclose(scheduler.clock_speed, 1 / 60)
 
@@ -56,7 +57,7 @@ def test_setting_clock_speed() -> None:
 
 def test_rebinding_same_command() -> None:
     """Verify actions are bound to commands correctly."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -96,7 +97,7 @@ def test_rebinding_same_command() -> None:
 
 def test_binding_multiple_commands_same_action() -> None:
     """Verify multiple commands bind to an action."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -132,7 +133,7 @@ def test_binding_multiple_commands_same_action() -> None:
 
 def test_rebinding_multiple_commands_same_action() -> None:
     """Verify rebinding multiple commands on the same action."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -178,7 +179,7 @@ def test_rebinding_multiple_commands_same_action() -> None:
 
 def test_binding_multiple_actions() -> None:
     """Verify binding a command to multiple actions."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -214,7 +215,7 @@ def test_binding_multiple_actions() -> None:
 
 def test_cancel_command() -> None:
     """Verify commands are canceled."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -252,7 +253,7 @@ def test_cancel_command() -> None:
 
 def test_command_raises_runtime_warning_in_cancel() -> None:
     """Verify commands raise RuntimeWarnings if they fail to cancel."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -293,7 +294,7 @@ def test_command_raises_runtime_warning_in_cancel() -> None:
 
 def test_scheduler_event_loop() -> None:
     """Verify the event loop schedules everything correctly."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -537,7 +538,7 @@ def test_scheduler_event_loop() -> None:
 
 def test_toggle_commands() -> None:
     """Verify commands toggle."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -629,7 +630,7 @@ def test_toggle_commands() -> None:
 
 def test_command_error_cancels() -> None:
     """Verify commands cancel if methods raise unhandable exceptions."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -686,7 +687,7 @@ def test_command_error_cancels() -> None:
 
 def test_conflicting_incoming_commands() -> None:
     """Verify incoming commands with conflicting requirements."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -750,7 +751,7 @@ def test_conflicting_incoming_commands() -> None:
 
 def test_scheduled_incoming_conflicting_commands() -> None:
     """Verify scheduled commands are interrupted by incoming commands."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -816,9 +817,13 @@ def test_scheduled_incoming_conflicting_commands() -> None:
     assert command3.did_exec
 
 
-def test_subsystems_dont_default_incoming_commands() -> None:
+@mock.patch.object(Command, "initialize")
+@mock.patch.object(Command, "execute")
+@mock.patch.object(Command, "is_finished")
+@mock.patch.object(Command, "end")
+def test_subsystems_dont_default_incoming_commands(*_) -> None:
     """Verify subsystems detect incoming commands and don't default."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -866,9 +871,13 @@ def test_subsystems_dont_default_incoming_commands() -> None:
     assert subsystem.current_command == None
 
 
-def test_forked_exec() -> None:
+@mock.patch.object(Command, "initialize")
+@mock.patch.object(Command, "execute")
+@mock.patch.object(Command, "is_finished")
+@mock.patch.object(Command, "end")
+def test_forked_exec(*_) -> None:
     """Verify execute runs normally when forked."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -923,9 +932,13 @@ def test_forked_exec() -> None:
     assert command1.did_exec
 
 
-def test_exec() -> None:
+@mock.patch.object(Command, "initialize")
+@mock.patch.object(Command, "execute")
+@mock.patch.object(Command, "is_finished")
+@mock.patch.object(Command, "end")
+def test_exec(*_) -> None:
     """Verify execute runs when executed in the main thread."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -982,9 +995,13 @@ def test_exec() -> None:
 
 
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
-def test_exec_cancels_on_error() -> None:
+@mock.patch.object(Command, "initialize")
+@mock.patch.object(Command, "execute")
+@mock.patch.object(Command, "is_finished")
+@mock.patch.object(Command, "end")
+def test_exec_cancels_on_error(*_) -> None:
     """Verify the event loop cancels all commands when errors occur."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -1069,7 +1086,7 @@ def test_exec_cancels_on_error() -> None:
 
 def test_sequential_command_group() -> None:
     """Verify sequential command group operates as expected."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -1205,7 +1222,7 @@ def test_sequential_command_group() -> None:
 
 def test_parallel_command_group() -> None:
     """Verify parallel command groups execute as expected."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty
@@ -1229,7 +1246,6 @@ def test_parallel_command_group() -> None:
         raise_error = False
 
         def handle_exception(self, *exc) -> bool:
-            print(exc)
             return True
 
         def initialize(self) -> None:
@@ -1372,7 +1388,7 @@ def test_parallel_command_group() -> None:
 
 def test_callable_command_type() -> None:
     """Verify callables that return commands are executed correctly."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty

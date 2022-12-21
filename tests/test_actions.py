@@ -4,7 +4,7 @@ from command_based_framework.scheduler import Scheduler
 
 def test_bind_all_condition_types() -> None:
     """Verify all condition types bind properly."""
-    scheduler = Scheduler.instance or Scheduler()
+    scheduler = Scheduler.get_instance() or Scheduler()
     scheduler._reset_all_stacks()
 
     # Verify the stack is empty

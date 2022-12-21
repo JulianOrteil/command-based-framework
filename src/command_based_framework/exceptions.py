@@ -9,7 +9,7 @@ class SchedulerExistsError(CommandBasedFrameworkError):
     allow undefined behavior to occur in terms of resource allocation
     and usage.
 
-    Instead, use :py:class:`~command_based_framework.scheduler.Scheduler`'s
-    :py:obj:`~command_based_framework.scheduler.SchedulerMeta.instance`
+    Instead, use :class:`~command_based_framework.scheduler.Scheduler`'s
+    :meth:`~command_based_framework.scheduler.Scheduler.get_instance()`
     or delete all references to the current scheduler and recreate it.
-    """  # noqa: E501
+    """
