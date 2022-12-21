@@ -5,7 +5,7 @@ Changelog
 Development version
 ===================
 
-Version 1.3.0, 2022-XX-XX
+Version 1.4.0, 2023-XX-XX
 -------------------------
 
 - Add `ConditionalCommand`
@@ -29,8 +29,16 @@ Version 1.3.0, 2022-XX-XX
 - Add `Command.perpetually`
 - Add command suppliers support
 
+
 Current versions
 ================
+
+Version 1.3.0, 2022-XX-XX
+-------------------------
+
+- Various bugfixes and improvements
+- Improve documentation
+- Remove `ABCMeta` metaclass implementations for PyQt compatibility
 
 Version 1.2.0, 2022-09-13
 -------------------------
