@@ -2,7 +2,3 @@
 # Note that both 'debug.txt' and 'release.txt' import the packages listed here.
 # Include all core dependencies required to make the library run.
 # Be sure to keep this file and 'install_requires' in 'setup.cfg' in sync.
-
-# gevent
-# -------------------------------------------------------------------------------------------------
-gevent[recommended]>=22.10.2  # https://github.com/gevent/gevent
