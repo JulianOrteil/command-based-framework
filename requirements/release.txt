@@ -1,0 +1,5 @@
+# Any additional release dependencies should be included here.
+# AVOID including dependencies here, but not in 'debug.txt'.
+
+# Import core dependencies from 'base.txt' without having to respecify them.
+-r base.txt
